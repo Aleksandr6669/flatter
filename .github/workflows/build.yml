@@ -34,7 +34,7 @@ jobs:
           channel: 'stable'
       - run: flutter pub get
       - name: Build IPA for Development
-        run: flutter build ipa --export-method development --no-codesign
+        run: flutter build ipa --export-method development
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:

@@ -16,13 +16,15 @@ The user wants to produce an `.ipa` file that can be installed on a physical iPh
 ### Progress & Challenges
 1.  **Initial Setup:** A GitHub Actions workflow was created to build the Android APK and the iOS app.
 2.  **Android Build:** The workflow successfully builds a release APK. An initial issue with the required Java version (11 vs. 17) was identified and resolved.
-3.  **iOS Build & Code Signing:**
-    *   The initial attempt to build an `.ipa` file failed with a "No valid code signing certificates were found" error.
-    *   This is a standard requirement from Apple: all applications installed on physical devices must be digitally signed.
-    *   The user suggested using `--export-method development`. It was explained that this method also requires a signature, just a different type (a Development Certificate instead of a Distribution Certificate).
-    *   An alternative was implemented to build a version for the iOS simulator (`.app` file), which does not require code signing. However, this output **cannot** be installed on a physical iPhone.
+3.  **iOS Build & Code Signing (Experiments):**
+    *   **Attempt 1 (Default):** `flutter build ipa` failed with a "No valid code signing certificates" error.
+    *   **Attempt 2 (Simulator):** `flutter build ios --simulator` successfully built a `.app` file, but this cannot be installed on a physical device, only on a simulator.
+    *   **Attempt 3 (Development Export with --no-codesign):** `flutter build ipa --export-method development --no-codesign` failed with a framework architecture mismatch and a missing provisioning profile error.
+    *   **Attempt 4 (Development Export without --no-codesign):** `flutter build ipa --export-method development` failed with a clear error: `Xcode couldn't find any iOS App Development provisioning profiles`. This is the most definitive confirmation that a signature is required.
 
 ### Blocker & Next Steps
+All experiments to create an `.ipa` file without code signing have failed, confirming that it is a mandatory requirement from Apple.
+
 The project is currently blocked from producing a testable `.ipa` file due to the lack of Apple Developer code signing certificates.
 
 The following two options have been presented to the user:
