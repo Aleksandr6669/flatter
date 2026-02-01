@@ -1,121 +1,52 @@
 
-import 'dart:async';
-import 'dart:io';
-
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
+  runApp(const MyApp());
+}
 
-  try {
-    final cameras = await availableCameras();
-    final firstCamera = cameras.first;
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
-    runApp(
-      MaterialApp(
-        theme: ThemeData.dark(),
-        home: TakePictureScreen(
-          camera: firstCamera,
-        ),
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Filmix TV',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
       ),
-    );
-  } on CameraException catch (e) {
-    runApp(
-      MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: Text('Error: ${e.code}\n${e.description}'),
-          ),
-        ),
-      ),
+      home: const MyHomePage(),
     );
   }
 }
 
-class TakePictureScreen extends StatefulWidget {
-  const TakePictureScreen({
-    super.key,
-    required this.camera,
-  });
-
-  final CameraDescription camera;
+class MyHomePage extends StatefulWidget {
+  const MyHomePage({super.key});
 
   @override
-  TakePictureScreenState createState() => TakePictureScreenState();
+  State<MyHomePage> createState() => _MyHomePageState();
 }
 
-class TakePictureScreenState extends State<TakePictureScreen> {
-  late CameraController _controller;
-  late Future<void> _initializeControllerFuture;
+class _MyHomePageState extends State<MyHomePage> {
+  late final WebViewController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = CameraController(
-      widget.camera,
-      ResolutionPreset.medium,
-    );
 
-    _initializeControllerFuture = _controller.initialize();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..loadRequest(Uri.parse('https://filmix.tv'));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Take a picture')),
-      body: FutureBuilder<void>(
-        future: _initializeControllerFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done) {
-            return CameraPreview(_controller);
-          } else {
-            return const Center(child: CircularProgressIndicator());
-          }
-        },
+      appBar: AppBar(
+        title: const Text('Filmix.tv'),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          try {
-            await _initializeControllerFuture;
-
-            final image = await _controller.takePicture();
-
-            if (!mounted) return;
-
-            await Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => DisplayPictureScreen(
-                  imagePath: image.path,
-                ),
-              ),
-            );
-          } catch (e) {
-            print(e);
-          }
-        },
-        child: const Icon(Icons.camera_alt),
-      ),
-    );
-  }
-}
-
-class DisplayPictureScreen extends StatelessWidget {
-  final String imagePath;
-
-  const DisplayPictureScreen({super.key, required this.imagePath});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Display the Picture')),
-      body: Image.file(File(imagePath)),
+      body: WebViewWidget(controller: _controller),
     );
   }
 }
