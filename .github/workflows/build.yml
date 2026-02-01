@@ -14,7 +14,7 @@ jobs:
       - uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
-          java-version: '17' # Updated from 11 to 17
+          java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
@@ -25,7 +25,7 @@ jobs:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
-  build_ios_simulator:
+  build_ios_development:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
@@ -33,12 +33,10 @@ jobs:
         with:
           channel: 'stable'
       - run: flutter pub get
-      - name: Build for iOS Simulator
-        run: flutter build ios --simulator --no-codesign
-      - name: Zip Simulator App
-        run: zip -r Runner-sim.zip build/ios/iphonesimulator/Runner.app
-      - name: Upload Simulator App Artifact
+      - name: Build IPA for Development
+        run: flutter build ipa --export-method development --no-codesign
+      - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: simulator-app
-          path: Runner-sim.zip
+          name: development-ipa
+          path: build/ios/ipa/*.ipa
