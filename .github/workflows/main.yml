@@ -1,14 +1,22 @@
 name: Flutter CI
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      build_target:
+        description: 'Which platform to build? (Android, iOS, or All)'
+        required: true
+        default: 'All'
+        type: choice
+        options:
+        - Android
+        - iOS
+        - All
 
 jobs:
   build_android:
     name: 🎉 Android Build
+    if: github.event.inputs.build_target == 'Android' || github.event.inputs.build_target == 'All'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -28,6 +36,7 @@ jobs:
 
   build_ios_development:
     name: 🎉 iOS Build
+    if: github.event.inputs.build_target == 'iOS' || github.event.inputs.build_target == 'All'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v3
