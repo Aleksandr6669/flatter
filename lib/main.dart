@@ -1,157 +1,59 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const FlutterBlueApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class FlutterBlueApp extends StatelessWidget {
+  const FlutterBlueApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'HiPee Posture Tracker',
-      theme: ThemeData(
-        primarySwatch: Colors.teal,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-        textTheme: TextTheme(
-          displayLarge: TextStyle(fontSize: 72.0, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
-          titleLarge: TextStyle(fontSize: 36.0, fontStyle: FontStyle.italic, color: Colors.teal.shade600),
-          bodyMedium: TextStyle(fontSize: 14.0, fontFamily: 'Hind', color: Colors.grey.shade800),
-        ),
-      ),
-      home: HiPeeControllerScreen(),
+      color: Colors.lightBlue,
+      home: StreamBuilder<BluetoothAdapterState>(
+          stream: FlutterBluePlus.adapterState,
+          initialData: BluetoothAdapterState.unknown,
+          builder: (c, snapshot) {
+            final adapterState = snapshot.data;
+            if (adapterState == BluetoothAdapterState.on) {
+              return const ScanScreen();
+            } else {
+              return BluetoothOffScreen(adapterState: adapterState);
+            }
+          }),
     );
   }
 }
 
-class HiPeeControllerScreen extends StatefulWidget {
-  @override
-  State<HiPeeControllerScreen> createState() => _HiPeeControllerScreenState();
-}
+class BluetoothOffScreen extends StatelessWidget {
+  const BluetoothOffScreen({super.key, this.adapterState});
 
-class _HiPeeControllerScreenState extends State<HiPeeControllerScreen> {
-  StreamSubscription<List<ScanResult>>? _scanResultsSubscription;
-  StreamSubscription<bool>? _isScanningSubscription;
-  bool _isScanning = false;
-  String _statusMessage = "Initializing...";
-  BluetoothDevice? _hipeeDevice;
-
-  @override
-  void initState() {
-    super.initState();
-    _isScanningSubscription = FlutterBluePlus.isScanning.listen((isScanning) {
-      if (mounted) {
-        setState(() {
-          _isScanning = isScanning;
-        });
-      }
-    });
-    _startScan();
-  }
-
-  @override
-  void dispose() {
-    _stopScan();
-    _scanResultsSubscription?.cancel();
-    _isScanningSubscription?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _startScan() async {
-    setState(() {
-      _statusMessage = "Scanning for 'hipee' device...";
-      _hipeeDevice = null;
-    });
-
-    try {
-      _scanResultsSubscription = FlutterBluePlus.scanResults.listen((results) {
-        final foundDevice = results.firstWhere(
-          (r) => r.device.platformName.toLowerCase() == 'hipee',
-          orElse: () => ScanResult(
-              device: BluetoothDevice(remoteId: const DeviceIdentifier('')),
-              advertisementData: AdvertisementData(advName: '', txPowerLevel: null, appearance: null, connectable: false, manufacturerData: {}, serviceData: {}, serviceUuids: []),
-              rssi: 0,
-              timeStamp: DateTime.now()),
-        );
-
-        if (foundDevice.device.remoteId.toString() != '' && _hipeeDevice == null) {
-          _hipeeDevice = foundDevice.device;
-          _stopScan();
-          setState(() {
-            _statusMessage = "Found 'hipee'! Connecting...";
-          });
-          _connectToDevice(_hipeeDevice!);
-        }
-      });
-
-      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 20));
-
-    } catch (e) {
-      developer.log("Error starting scan: $e");
-      setState(() {
-        _statusMessage = "Error: Bluetooth is not available or enabled.";
-      });
-    }
-
-    if(_hipeeDevice == null && mounted){
-         setState(() {
-            _statusMessage = "'hipee' device not found. Please make sure it's on and nearby.";
-          });
-    }
-  }
-
-  Future<void> _stopScan() async {
-    await FlutterBluePlus.stopScan();
-    await _scanResultsSubscription?.cancel();
-    _scanResultsSubscription = null;
-  }
-
-  void _connectToDevice(BluetoothDevice device) {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DeviceScreen(device: device),
-        settings: const RouteSettings(name: '/device'),
-      ),
-    );
-  }
+  final BluetoothAdapterState? adapterState;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('HiPee Posture Tracker'),
-      ),
+      backgroundColor: Colors.lightBlue,
       body: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_isScanning)
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
-              ),
-            const SizedBox(height: 24),
-            Text(
-              _statusMessage,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.grey.shade600),
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(
+              Icons.bluetooth_disabled,
+              size: 200.0,
+              color: Colors.white54,
             ),
-            const SizedBox(height: 24),
-            if (!_isScanning && _hipeeDevice == null)
-              ElevatedButton(
-                onPressed: _startScan,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  textStyle: const TextStyle(fontSize: 18)
-                ),
-                child: const Text('Retry Scan'),
-              )
+            Text(
+              'Bluetooth Adapter is ${adapterState?.toString().substring(15) ?? 'not available'}.',
+              style: Theme.of(context)
+                  .primaryTextTheme
+                  .titleSmall
+                  ?.copyWith(color: Colors.white),
+            ),
           ],
         ),
       ),
@@ -159,6 +61,168 @@ class _HiPeeControllerScreenState extends State<HiPeeControllerScreen> {
   }
 }
 
+class ScanScreen extends StatefulWidget {
+  const ScanScreen({super.key});
+
+  @override
+  State<ScanScreen> createState() => _ScanScreenState();
+}
+
+class _ScanScreenState extends State<ScanScreen> {
+  List<ScanResult> _scanResults = [];
+  bool _isScanning = false;
+  late StreamSubscription<List<ScanResult>> _scanResultsSubscription;
+  late StreamSubscription<bool> _isScanningSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _scanResultsSubscription = FlutterBluePlus.scanResults.listen((results) {
+      _scanResults = results;
+      if (mounted) {
+        setState(() {});
+      }
+    });
+
+    _isScanningSubscription = FlutterBluePlus.isScanning.listen((state) {
+      if (mounted) {
+        setState(() {
+          _isScanning = state;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scanResultsSubscription.cancel();
+    _isScanningSubscription.cancel();
+    super.dispose();
+  }
+
+  Future<void> onScanPressed() async {
+    try {
+      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    }
+  }
+
+  Future<void> onStopPressed() async {
+    try {
+      await FlutterBluePlus.stopScan();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    }
+  }
+
+  void onConnectPressed(BluetoothDevice device) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => DeviceScreen(device: device),
+      ),
+    );
+  }
+
+
+  Future onRefresh() {
+    if (!_isScanning) {
+      onScanPressed();
+    }
+    if (mounted) {
+      setState(() {});
+    }
+    return Future.delayed(const Duration(milliseconds: 500));
+  }
+
+  Widget buildScanButton(BuildContext context) {
+    if (_isScanning) {
+      return FloatingActionButton(
+        onPressed: onStopPressed,
+        backgroundColor: Colors.red,
+        child: const Icon(Icons.stop),
+      );
+    } else {
+      return FloatingActionButton(onPressed: onScanPressed, child: const Text("SCAN"));
+    }
+  }
+
+  List<Widget> _buildScanResultTiles(BuildContext context) {
+    return _scanResults
+        .map(
+          (r) => ScanResultTile(
+            result: r,
+            onTap: () => onConnectPressed(r.device),
+          ),
+        )
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Find Devices'),
+      ),
+      body: RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView(
+          children: <Widget>[
+            ..._buildScanResultTiles(context),
+          ],
+        ),
+      ),
+      floatingActionButton: buildScanButton(context),
+    );
+  }
+}
+
+class ScanResultTile extends StatelessWidget {
+  const ScanResultTile({super.key, required this.result, this.onTap});
+
+  final ScanResult result;
+  final VoidCallback? onTap;
+
+  Widget _buildTitle(BuildContext context) {
+    String deviceName = '';
+    if (result.device.platformName.isNotEmpty) {
+      deviceName = result.device.platformName;
+    } else if (result.advertisementData.advName.isNotEmpty) {
+      deviceName = result.advertisementData.advName;
+    } else {
+      deviceName = 'Unknown Device';
+    }
+    return Text(
+      deviceName,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  Widget _buildAdvRow(BuildContext context) {
+    return Text(result.device.remoteId.toString());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: _buildTitle(context),
+      subtitle: _buildAdvRow(context),
+      trailing: ElevatedButton(
+        onPressed: (result.advertisementData.connectable) ? onTap : null,
+        child: const Text('Connect'),
+      ),
+    );
+  }
+}
 
 class DeviceScreen extends StatefulWidget {
   final BluetoothDevice device;
@@ -171,14 +235,9 @@ class DeviceScreen extends StatefulWidget {
 
 class _DeviceScreenState extends State<DeviceScreen> {
   List<BluetoothService> _services = [];
-  bool _isConnected = false;
+  bool _isConnecting = false;
+  bool _isDisconnecting = false;
   late StreamSubscription<BluetoothConnectionState> _connectionStateSubscription;
-
-  bool _isMonitoring = false;
-  StreamSubscription<List<int>>? _postureSubscription;
-  BluetoothCharacteristic? _postureCharacteristic;
-  int _postureAngle = 0;
-  String _postureMessage = '';
 
   @override
   void initState() {
@@ -186,183 +245,217 @@ class _DeviceScreenState extends State<DeviceScreen> {
     _connectionStateSubscription =
         widget.device.connectionState.listen((state) async {
       if (mounted) {
-        _isConnected = state == BluetoothConnectionState.connected;
-        if (_isConnected) {
-          final services = await widget.device.discoverServices();
-          setState(() {
-            _services = services;
-          });
-          // Automatically start monitoring
-          _toggleMonitoring(true);
-        } else {
-          _services = [];
-          _stopPostureMonitoring(); // Stop monitoring if disconnected
+        if (state == BluetoothConnectionState.connected) {
+           _services = await widget.device.discoverServices();
+           setState(() {});
         }
-        setState(() {});
+         if (state == BluetoothConnectionState.disconnected) {
+           if(Navigator.of(context).canPop()){
+             Navigator.of(context).pop();
+           }
+        }
       }
     });
-    _connectToDevice();
-  }
-
-  Future<void> _connectToDevice() async {
-    try {
-      await widget.device.connect(license: License.free);
-    } catch(e) {
-       developer.log("Error connecting to device: $e");
-       if (mounted) {
-         // Show error and pop back
-         ScaffoldMessenger.of(context).showSnackBar(
-           const SnackBar(content: Text("Failed to connect to device."), backgroundColor: Colors.red)
-         );
-         Navigator.of(context).pop();
-       }
-    }
+    _connect();
   }
 
   @override
   void dispose() {
     _connectionStateSubscription.cancel();
-    _stopPostureMonitoring();
-    widget.device.disconnect();
     super.dispose();
   }
 
-  Future<void> _toggleMonitoring(bool value) async {
-    if (value) {
-      await _startPostureMonitoring();
-    } else {
-      await _stopPostureMonitoring();
-    }
-  }
-
-  Future<void> _startPostureMonitoring() async {
-    if (_services.isEmpty || !_isConnected) return;
-
-    // Specific UUIDs for HiPee device
-    final serviceUuid = Guid("0000ff00-0000-1000-8000-00805f9b34fb");
-    final characteristicUuid = Guid("0000ff01-0000-1000-8000-00805f9b34fb");
-
+  Future<void> _connect() async {
+    if (_isConnecting) return;
+    setState(() {
+      _isConnecting = true;
+    });
     try {
-       final service = _services.firstWhere((s) => s.uuid == serviceUuid);
-       _postureCharacteristic = service.characteristics.firstWhere((c) => c.uuid == characteristicUuid);
+      await widget.device.connect(timeout: const Duration(seconds: 15), license: License.free);
     } catch (e) {
-      developer.log("HiPee service/characteristic not found: $e");
-      // Fallback to first notifying characteristic
-      for (var service in _services) {
-        for (var char in service.characteristics) {
-          if (char.properties.notify) {
-            _postureCharacteristic = char;
-            break;
-          }
-        }
-        if (_postureCharacteristic != null) break;
-      }
-    }
-
-
-    if (_postureCharacteristic != null) {
-      await _postureCharacteristic!.setNotifyValue(true);
-      _postureSubscription = _postureCharacteristic!.lastValueStream.listen((value) {
-        if (value.isNotEmpty) {
-          // Assuming the angle is in the 3rd byte for HiPee
-          int angle = value.length > 2 ? value[2] : value[0];
-          developer.log("Raw value: $value, Current angle: $angle");
-
-          String message = '';
-          if (angle > 20) { // More sensitive threshold
-            message = "Саша, выровняй спину!";
-            developer.log(message);
-          }
-          if (mounted) {
-            setState(() {
-              _postureAngle = angle;
-              _postureMessage = message;
-            });
-          }
-        }
-      });
       if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text("Connection Failed: $e")),
+         );
+         Navigator.of(context).pop();
+      }
+    } finally {
+       if (mounted) {
         setState(() {
-          _isMonitoring = true;
+          _isConnecting = false;
         });
       }
-    } else {
-      developer.log("No suitable characteristic found for posture monitoring.");
     }
   }
 
-  Future<void> _stopPostureMonitoring() async {
-    await _postureSubscription?.cancel();
-    _postureSubscription = null;
-    if (_postureCharacteristic != null && _isConnected) {
-      try {
-        await _postureCharacteristic!.setNotifyValue(false);
-      } catch (e) {
-        developer.log("Error disabling notifications: $e");
+   Future<void> _disconnect() async {
+    if (_isDisconnecting) return;
+    setState(() {
+      _isDisconnecting = true;
+    });
+    try {
+      await widget.device.disconnect();
+    } catch (e) {
+       // Handle disconnection error
+    } finally {
+       if (mounted) {
+        setState(() {
+          _isDisconnecting = false;
+        });
       }
     }
-    _postureCharacteristic = null;
+  }
 
-    if (mounted) {
-      setState(() {
-        _isMonitoring = false;
-        _postureAngle = 0;
-        _postureMessage = '';
-      });
-    }
+  List<Widget> _buildServiceTiles() {
+    return _services
+        .map(
+          (s) => ServiceTile(
+            service: s,
+            characteristicTiles: s.characteristics
+                .map(
+                  (c) => CharacteristicTile(
+                    characteristic: c,
+                    onReadPressed: () => c.read(),
+                    onWritePressed: () async {
+                      await c.write([0x12, 0x34]);
+                    },
+                    onNotificationPressed: () async {
+                      await c.setNotifyValue(!c.isNotifying);
+                      await c.read();
+                    },
+                  ),
+                )
+                .toList(),
+          ),
+        )
+        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.device.platformName.isNotEmpty
-            ? widget.device.platformName
-            : 'Unknown Device'),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back),
-          onPressed: (){
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => HiPeeControllerScreen()),
+        title: Text(widget.device.platformName.isNotEmpty ? widget.device.platformName : 'Unknown Device'),
+        actions: <Widget>[
+          StreamBuilder<BluetoothConnectionState>(
+            stream: widget.device.connectionState,
+            initialData: BluetoothConnectionState.disconnected,
+            builder: (c, snapshot) {
+              final state = snapshot.data;
+              if (state == BluetoothConnectionState.connected) {
+                return TextButton(
+                  onPressed: _disconnect,
+                  child: const Text('DISCONNECT', style: TextStyle(color: Colors.white)),
+                );
+              }
+              if (state == BluetoothConnectionState.disconnected) {
+                 return TextButton(
+                  onPressed: _connect,
+                  child: const Text('CONNECT', style: TextStyle(color: Colors.white)),
+                );
+              }
+              return const Padding(
+                padding: EdgeInsets.all(8.0),
+                child: CircularProgressIndicator(color: Colors.white), 
               );
-          },
-        ),
+            },
+          )
+        ],
       ),
-      body: Center(
-        child: !_isConnected ?
-        const Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 20),
-                Text("Connecting..."),
-            ],
-        )
-        : Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text("Posture Status", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-             Text('Текущий угол: $_postureAngle°', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 20),
-            if (_postureMessage.isNotEmpty)
-              Text(
-                _postureMessage,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                textAlign: TextAlign.center,
-              ),
-            if (!_isMonitoring && _isConnected)
-               const Padding(
-                 padding: EdgeInsets.all(20.0),
-                 child: Text("Waiting for posture data...", style: TextStyle(fontStyle: FontStyle.italic),),
-               ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: <Widget>[
+             StreamBuilder<BluetoothConnectionState>(
+               stream: widget.device.connectionState,
+               initialData: BluetoothConnectionState.disconnected,
+               builder: (c, snapshot) => ListTile(
+                leading: (snapshot.data == BluetoothConnectionState.connected)
+                    ? const Icon(Icons.bluetooth_connected)
+                    : const Icon(Icons.bluetooth_disabled),
+                title: Text(
+                    'Device is ${snapshot.data.toString().split('.').last}.'),
+                subtitle: Text(widget.device.remoteId.toString()),
+              ), 
+             ),
+            ..._buildServiceTiles(),
           ],
         ),
       ),
+    );
+  }
+}
+
+
+class ServiceTile extends StatelessWidget {
+  final BluetoothService service;
+  final List<CharacteristicTile> characteristicTiles;
+
+  const ServiceTile(
+      {super.key, required this.service, required this.characteristicTiles});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        ListTile(
+          title: const Text('Service'),
+          subtitle:
+              Text('0x${service.uuid.toString().toUpperCase().substring(4, 8)}'),
+        ),
+        ...characteristicTiles,
+      ],
+    );
+  }
+}
+
+class CharacteristicTile extends StatelessWidget {
+  final BluetoothCharacteristic characteristic;
+  final VoidCallback? onReadPressed;
+  final VoidCallback? onWritePressed;
+  final VoidCallback? onNotificationPressed;
+
+  const CharacteristicTile(
+      {super.key,
+      required this.characteristic,
+      this.onReadPressed,
+      this.onWritePressed,
+      this.onNotificationPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<int>>(
+      stream: characteristic.lastValueStream,
+      initialData: characteristic.lastValue,
+      builder: (c, snapshot) {
+        final value = snapshot.data;
+        return ListTile(
+            title: Text('Characteristic 0x${characteristic.uuid.toString().toUpperCase().substring(4, 8)}'),
+            subtitle: Text(value.toString()),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
+            trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              if (characteristic.properties.read)
+                IconButton(
+                  icon: const Icon(Icons.file_download, color: Colors.black,),
+                  onPressed: onReadPressed,
+                ),
+              if (characteristic.properties.write)
+                IconButton(
+                  icon: const Icon(Icons.file_upload, color: Colors.black,),
+                  onPressed: onWritePressed,
+                ),
+              if (characteristic.properties.notify ||
+                  characteristic.properties.indicate)
+                IconButton(
+                  icon: Icon(
+                    characteristic.isNotifying ? Icons.sync_disabled : Icons.sync, color: Colors.black,),
+                  onPressed: onNotificationPressed,
+                )
+            ],
+          ),
+        );
+      },
     );
   }
 }
