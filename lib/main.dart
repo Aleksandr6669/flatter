@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
@@ -65,20 +64,11 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   Future<void> _startScan() async {
-    if (Platform.isAndroid) {
-      await FlutterBluePlus.startScan(
-          timeout: const Duration(seconds: 15));
-    } else {
-      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
-    }
+    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
   }
 
   Future<void> _stopScan() async {
-    if (Platform.isAndroid) {
-      await FlutterBluePlus.stopScan();
-    } else {
-      await FlutterBluePlus.stopScan();
-    }
+    await FlutterBluePlus.stopScan();
   }
 
   @override
