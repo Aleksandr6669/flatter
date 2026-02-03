@@ -72,7 +72,7 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildGlassNavBar() {
     final screenWidth = MediaQuery.of(context).size.width;
-    const double horizontalPadding = 50.0;
+    const double horizontalPadding = 40.0;
     final double navBarWidth = screenWidth - (horizontalPadding * 2);
     const int itemCount = 3;
     final double itemWidth = navBarWidth / itemCount;
