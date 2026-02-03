@@ -1,5 +1,5 @@
-
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -8,6 +8,8 @@ import 'package:google_fonts/google_fonts.dart';
 void main() {
   runApp(const FlutterBlueApp());
 }
+
+// --- Основная структура приложения ---
 
 class FlutterBlueApp extends StatelessWidget {
   const FlutterBlueApp({super.key});
@@ -18,30 +20,24 @@ class FlutterBlueApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        primaryColor: Colors.lightBlue,
-        scaffoldBackgroundColor: Colors.grey[100],
+        colorSchemeSeed: Colors.lightBlue,
+        brightness: Brightness.light,
         textTheme: GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme),
-        appBarTheme: AppBarTheme(
-          backgroundColor: Colors.lightBlue,
-          foregroundColor: Colors.white,
-          titleTextStyle: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.lightBlue,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          ),
-        ),
       ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: Colors.lightBlue,
+        brightness: Brightness.dark,
+        textTheme: GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme.apply(bodyColor: Colors.white, displayColor: Colors.white)),
+      ),
+      themeMode: ThemeMode.system,
       home: StreamBuilder<BluetoothAdapterState>(
         stream: FlutterBluePlus.adapterState,
         initialData: BluetoothAdapterState.unknown,
         builder: (c, snapshot) {
           final adapterState = snapshot.data;
           if (adapterState == BluetoothAdapterState.on) {
-            return const ScanScreen();
+            return const AppShell(); // Показываем оболочку с навигацией
           } else {
             return BluetoothOffScreen(adapterState: adapterState);
           }
@@ -51,6 +47,139 @@ class FlutterBlueApp extends StatelessWidget {
   }
 }
 
+class AppShell extends StatefulWidget {
+  const AppShell({super.key});
+
+  @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> {
+  int _selectedIndex = 1; // Начинаем с экрана сканирования
+
+  static const List<Widget> _widgetOptions = <Widget>[
+    HomeScreen(),
+    ScanScreen(),
+    AboutScreen(),
+  ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBody: true, // Позволяет телу находиться за панелью навигации
+      body: _widgetOptions.elementAt(_selectedIndex),
+      bottomNavigationBar: _buildGlassNavBar(),
+    );
+  }
+
+  Widget _buildGlassNavBar() {
+    return ClipRRect(
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(24.0),
+        topRight: Radius.circular(24.0),
+      ),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface.withAlpha(200),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24.0),
+              topRight: Radius.circular(24.0),
+            ),
+            border: Border.all(color: Theme.of(context).colorScheme.onSurface.withAlpha(50))
+          ),
+          child: BottomNavigationBar(
+            items: const <BottomNavigationBarItem>[
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_rounded),
+                label: 'Главная',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.bluetooth_searching_rounded),
+                label: 'Сканер',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.info_outline_rounded),
+                label: 'О приложении',
+              ),
+            ],
+            currentIndex: _selectedIndex,
+            selectedItemColor: Theme.of(context).colorScheme.primary,
+            unselectedItemColor: Theme.of(context).colorScheme.onSurface.withAlpha(150),
+            onTap: _onItemTapped,
+            backgroundColor: Colors.transparent, // Обязательно для эффекта
+            elevation: 0, // Убираем тень, так как у нас есть рамка
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- Новые экраны для навигации ---
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Главная'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.bluetooth_audio_rounded, size: 100, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(height: 20),
+            Text('Bluetooth Сканер', style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            const Text('Найдите и подключитесь к устройствам поблизости', textAlign: TextAlign.center,),
+          ],
+        )
+      ),
+    );
+  }
+}
+
+class AboutScreen extends StatelessWidget {
+  const AboutScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('О приложении'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Text(
+            'Это приложение разработано для демонстрации возможностей Flutter и плагина flutter_blue_plus.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+// --- Существующие экраны (адаптированные) ---
+
 class BluetoothOffScreen extends StatelessWidget {
   const BluetoothOffScreen({super.key, this.adapterState});
 
@@ -59,7 +188,7 @@ class BluetoothOffScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.lightBlue,
+      backgroundColor: Theme.of(context).colorScheme.primary,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -158,7 +287,8 @@ class _ScanScreenState extends State<ScanScreen> {
       builder: (context) => DeviceScreen(device: device),
       settings: const RouteSettings(name: '/DeviceScreen'),
     );
-    Navigator.of(context).push(route);
+    // Используем Navigator.push, чтобы экран открылся поверх навигации
+    Navigator.of(context, rootNavigator: true).push(route);
   }
 
   Future<void> onRefresh() async {
@@ -175,12 +305,13 @@ class _ScanScreenState extends State<ScanScreen> {
     return FloatingActionButton.extended(
       onPressed: isScanning ? onStopPressed : onScanPressed,
       label: Text(isScanning ? 'ОСТАНОВИТЬ' : 'СКАНИРОВАТЬ'),
-      icon: isScanning ? const Icon(Icons.stop) : const Icon(Icons.search),
-      backgroundColor: isScanning ? Colors.redAccent : Colors.lightBlue,
+      icon: isScanning ? const Icon(Icons.stop_rounded) : const Icon(Icons.search_rounded),
+      backgroundColor: isScanning ? Colors.redAccent : Theme.of(context).colorScheme.secondary,
     );
   }
 
   Widget _buildScanResultList() {
+    final bottomPadding = MediaQuery.of(context).padding.bottom + kBottomNavigationBarHeight;
     return _scanResults.isEmpty
         ? Center(
             child: Column(
@@ -204,6 +335,7 @@ class _ScanScreenState extends State<ScanScreen> {
             ),
           )
         : ListView.builder(
+            padding: EdgeInsets.only(bottom: bottomPadding + 80), // Отступ для плавающей кнопки
             itemCount: _scanResults.length,
             itemBuilder: (context, index) {
               final result = _scanResults[index];
@@ -218,9 +350,10 @@ class _ScanScreenState extends State<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Поиск Bluetooth устройств'),
-        
+       appBar: AppBar(
+        title: const Text('Сканер устройств'),
+         backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
       body: RefreshIndicator(
         onRefresh: onRefresh,
@@ -264,6 +397,7 @@ class ScanResultTile extends StatelessWidget {
     return Card(
       elevation: 2,
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
         leading: Column(
@@ -271,7 +405,7 @@ class ScanResultTile extends StatelessWidget {
           children: [
             Icon(
               getRssiIcon(),
-              color: Colors.lightBlue,
+              color: Theme.of(context).colorScheme.primary,
             ),
             Text(
               '${result.rssi} dBm',
@@ -368,6 +502,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
     return Card(
       elevation: 2,
       margin: const EdgeInsets.all(10),
+       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -391,6 +526,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
                         return Text(
                           snapshot.data.toString().split('.').last,
                           style: TextStyle(
+                              fontWeight: FontWeight.bold,
                               color: snapshot.data == BluetoothConnectionState.connected
                                   ? Colors.green
                                   : Colors.red),
@@ -478,6 +614,7 @@ class ServiceTile extends StatelessWidget {
     return Card(
       elevation: 2,
       margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ExpansionTile(
         title: const Text('Service', style: TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text('0x${service.uuid.toString().toUpperCase().substring(4, 8)}'),
