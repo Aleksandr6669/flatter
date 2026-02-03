@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 
 void main() {
   runApp(const FlutterBlueApp());
@@ -37,7 +36,7 @@ class FlutterBlueApp extends StatelessWidget {
         builder: (c, snapshot) {
           final adapterState = snapshot.data;
           if (adapterState == BluetoothAdapterState.on) {
-            return const AppShell(); // Показываем оболочку с навигацией
+            return const AppShell();
           } else {
             return BluetoothOffScreen(adapterState: adapterState);
           }
@@ -55,7 +54,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int _selectedIndex = 1; // Начинаем с экрана сканирования
+  int _selectedIndex = 1;
 
   static const List<Widget> _widgetOptions = <Widget>[
     HomeScreen(),
@@ -72,56 +71,62 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true, // Позволяет телу находиться за панелью навигации
-      body: _widgetOptions.elementAt(_selectedIndex),
-      bottomNavigationBar: _buildGlassNavBar(),
+      body: LiquidGlassLayer(
+        settings: const LiquidGlassSettings(
+          thickness: 20,
+          blur: 10,
+        ),
+        child: Stack(
+          children: [
+            // 1. Контент страницы
+            _widgetOptions.elementAt(_selectedIndex),
+
+            // 2. "Жидкое" меню навигации
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: LiquidGlassBlendGroup(
+                blend: 20.0,
+                child: Container(
+                   padding: const EdgeInsets.only(bottom: 24, top: 12), // Отступы для безопасности и эстетики
+                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildNavItem(icon: Icons.home_rounded, index: 0),
+                      _buildNavItem(icon: Icons.bluetooth_searching_rounded, index: 1),
+                      _buildNavItem(icon: Icons.info_outline_rounded, index: 2),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildGlassNavBar() {
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(
-        topLeft: Radius.circular(24.0),
-        topRight: Radius.circular(24.0),
-      ),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface.withAlpha(200),
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(24.0),
-              topRight: Radius.circular(24.0),
-            ),
-            border: Border.all(color: Theme.of(context).colorScheme.onSurface.withAlpha(50))
-          ),
-          child: BottomNavigationBar(
-            items: const <BottomNavigationBarItem>[
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home_rounded),
-                label: 'Главная',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.bluetooth_searching_rounded),
-                label: 'Сканер',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.info_outline_rounded),
-                label: 'О приложении',
-              ),
-            ],
-            currentIndex: _selectedIndex,
-            selectedItemColor: Theme.of(context).colorScheme.primary,
-            unselectedItemColor: Theme.of(context).colorScheme.onSurface.withAlpha(150),
-            onTap: _onItemTapped,
-            backgroundColor: Colors.transparent, // Обязательно для эффекта
-            elevation: 0, // Убираем тень, так как у нас есть рамка
+  Widget _buildNavItem({required IconData icon, required int index}) {
+    bool isSelected = _selectedIndex == index;
+    return GestureDetector(
+      onTap: () => _onItemTapped(index),
+      child: LiquidGlass.grouped(
+        shape: LiquidRoundedSuperellipse(
+          borderRadius: 40,
+        ),
+        child: SizedBox(
+          width: 80,
+          height: 80,
+          child: Icon(
+            icon,
+            color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface.withAlpha(200),
+            size: 30,
           ),
         ),
       ),
     );
   }
 }
+
 
 // --- Новые экраны для навигации ---
 
@@ -287,7 +292,6 @@ class _ScanScreenState extends State<ScanScreen> {
       builder: (context) => DeviceScreen(device: device),
       settings: const RouteSettings(name: '/DeviceScreen'),
     );
-    // Используем Navigator.push, чтобы экран открылся поверх навигации
     Navigator.of(context, rootNavigator: true).push(route);
   }
 
@@ -311,7 +315,8 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   Widget _buildScanResultList() {
-    final bottomPadding = MediaQuery.of(context).padding.bottom + kBottomNavigationBarHeight;
+    // Добавим отступ снизу, чтобы учесть и плавающую кнопку, и навигацию
+    final bottomPadding = MediaQuery.of(context).padding.bottom + 180;
     return _scanResults.isEmpty
         ? Center(
             child: Column(
@@ -335,7 +340,7 @@ class _ScanScreenState extends State<ScanScreen> {
             ),
           )
         : ListView.builder(
-            padding: EdgeInsets.only(bottom: bottomPadding + 80), // Отступ для плавающей кнопки
+            padding: EdgeInsets.only(bottom: bottomPadding), 
             itemCount: _scanResults.length,
             itemBuilder: (context, index) {
               final result = _scanResults[index];
@@ -360,7 +365,7 @@ class _ScanScreenState extends State<ScanScreen> {
         child: _buildScanResultList(),
       ),
       floatingActionButton: buildScanButton(context),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat, // ИЗМЕНЕНО
     );
   }
 }
