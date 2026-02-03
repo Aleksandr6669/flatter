@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'dart:math';
+import 'dart:ui' show lerpDouble;
 
 void main() {
   runApp(const MyApp());
@@ -26,8 +27,11 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
-  int _selectedIndex = 0;
+class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
+  int _currentIndex = 0;
+  int _previousIndex = 0;
+  late AnimationController _controller;
+  late Animation<double> _animation;
 
   static const List<Widget> _widgetOptions = <Widget>[
     HomeScreen(),
@@ -35,10 +39,29 @@ class _MainScreenState extends State<MainScreen> {
     SettingsScreen(),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 450),
+      vsync: this,
+    );
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   void _onItemTapped(int index) {
+    if (index == _currentIndex) return;
     setState(() {
-      _selectedIndex = index;
+      _previousIndex = _currentIndex;
+      _currentIndex = index;
     });
+    _controller.forward(from: 0.0);
   }
 
   @override
@@ -63,7 +86,7 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           Center(
-            child: _widgetOptions.elementAt(_selectedIndex),
+            child: _widgetOptions.elementAt(_currentIndex),
           ),
           _buildGlassNavBar(), // Custom glass navigation bar
         ],
@@ -72,6 +95,10 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildGlassNavBar() {
+    const double navBarHeight = 65;
+    final Color unselectedColor = Colors.white70;
+    final Color selectedColor = Colors.amber[600]!;
+
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
@@ -83,7 +110,7 @@ class _MainScreenState extends State<MainScreen> {
             final double itemWidth = navBarWidth / itemCount;
 
             return SizedBox(
-              height: 65,
+              height: navBarHeight,
               width: double.infinity,
               child: LiquidGlass.withOwnLayer(
                 settings: const LiquidGlassSettings(
@@ -92,39 +119,64 @@ class _MainScreenState extends State<MainScreen> {
                   glassColor: Color(0x33FFFFFF),
                 ),
                 shape: LiquidRoundedSuperellipse(borderRadius: 25),
-                child: Stack(
-                  children: [
-                    // The sliding glass indicator
-                    AnimatedPositioned(
-                      duration: const Duration(milliseconds: 350),
-                      curve: Curves.easeInOut,
-                      left: _selectedIndex * itemWidth,
-                      top: 0,
-                      height: 65,
-                      width: itemWidth,
-                      child: Padding(
-                        padding: const EdgeInsets.all(4.0),
-                        child: LiquidGlass.withOwnLayer(
-                          settings: const LiquidGlassSettings(
-                            blur: 8.0,
-                            thickness: 40,
-                            glassColor: Color(0x4DFFFFFF),
-                          ),
-                          shape: LiquidRoundedSuperellipse(borderRadius: 21),
-                          child: const SizedBox.shrink(),
-                        ),
-                      ),
-                    ),
-                    // The navigation items on top
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                // The entire child is now an AnimatedBuilder for full sync
+                child: AnimatedBuilder(
+                  animation: _animation,
+                  builder: (context, child) {
+                    // --- Animation Value Calculations ---
+                    // 1. Drop Position
+                    final double startLeft = (_previousIndex * itemWidth) + (itemWidth / 2);
+                    final double endLeft = (_currentIndex * itemWidth) + (itemWidth / 2);
+                    final currentLeft = lerpDouble(startLeft, endLeft, _animation.value);
+
+                    // 2. Drop Size (Pulse)
+                    final double sizePulse = 0.2 * sin(_animation.value * pi);
+                    final double baseSize = navBarHeight * 0.8;
+                    final double currentSize = baseSize + (baseSize * sizePulse);
+
+                    // 3. Item Color (Icon & Text)
+                    Color getItemColor(int index) {
+                      if (index == _currentIndex) {
+                        return Color.lerp(unselectedColor, selectedColor, _animation.value)!;
+                      } else if (index == _previousIndex) {
+                        return Color.lerp(selectedColor, unselectedColor, _animation.value)!;
+                      } else {
+                        return unselectedColor;
+                      }
+                    }
+
+                    // --- Build UI based on animated values ---
+                    return Stack(
                       children: [
-                        _buildNavItem(Icons.home, 'Главная', 0, itemWidth),
-                        _buildNavItem(Icons.person, 'Персонаж', 1, itemWidth),
-                        _buildNavItem(Icons.settings, 'Настройки', 2, itemWidth),
+                        // Pulsing drop indicator
+                        if (currentLeft != null)
+                          Positioned(
+                            left: currentLeft - (currentSize / 2),
+                            top: (navBarHeight - currentSize) / 2,
+                            width: currentSize,
+                            height: currentSize,
+                            child: LiquidGlass.withOwnLayer(
+                              settings: const LiquidGlassSettings(
+                                blur: 5.0,
+                                thickness: 30,
+                                glassColor: Color(0x4DFFFFFF),
+                              ),
+                              shape: LiquidRoundedSuperellipse(borderRadius: currentSize / 2), // Correct way to make a circle
+                              child: const SizedBox.shrink(),
+                            ),
+                          ),
+                        // Navigation items with animated colors
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _buildNavItem(Icons.home, 'Главная', 0, itemWidth, getItemColor(0)),
+                            _buildNavItem(Icons.person, 'Персонаж', 1, itemWidth, getItemColor(1)),
+                            _buildNavItem(Icons.settings, 'Настройки', 2, itemWidth, getItemColor(2)),
+                          ],
+                        ),
                       ],
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
             );
@@ -134,11 +186,8 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, int index, double itemWidth) {
-    final bool isSelected = _selectedIndex == index;
-    final Color unselectedColor = Colors.white70;
-    final Color selectedColor = Colors.amber[600]!;
-
+  // This widget is now simpler, just rendering the state passed to it.
+  Widget _buildNavItem(IconData icon, String label, int index, double itemWidth, Color color) {
     return SizedBox(
       width: itemWidth,
       child: InkWell(
@@ -147,28 +196,19 @@ class _MainScreenState extends State<MainScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Animate the icon color
-            TweenAnimationBuilder<Color?>(
-              tween: ColorTween(end: isSelected ? selectedColor : unselectedColor),
-              duration: const Duration(milliseconds: 300),
-              builder: (context, color, child) {
-                return Icon(
-                  icon,
-                  color: color,
-                  size: 28,
-                );
-              },
+            Icon(
+              icon,
+              color: color,
+              size: 28,
             ),
             const SizedBox(height: 2),
-            // Animate the text style (color)
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 300),
+            Text(
+              label,
               style: TextStyle(
-                color: isSelected ? selectedColor : unselectedColor,
+                color: color,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
-              child: Text(label),
             ),
           ],
         ),
