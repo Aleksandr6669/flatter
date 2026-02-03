@@ -119,22 +119,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                   glassColor: Color(0x33FFFFFF),
                 ),
                 shape: LiquidRoundedSuperellipse(borderRadius: 25),
-                // The entire child is now an AnimatedBuilder for full sync
                 child: AnimatedBuilder(
                   animation: _animation,
                   builder: (context, child) {
-                    // --- Animation Value Calculations ---
-                    // 1. Drop Position
-                    final double startLeft = (_previousIndex * itemWidth) + (itemWidth / 2);
-                    final double endLeft = (_currentIndex * itemWidth) + (itemWidth / 2);
-                    final currentLeft = lerpDouble(startLeft, endLeft, _animation.value);
-
-                    // 2. Drop Size (Pulse)
-                    final double sizePulse = 0.2 * sin(_animation.value * pi);
-                    final double baseSize = navBarHeight * 0.8;
-                    final double currentSize = baseSize + (baseSize * sizePulse);
-
-                    // 3. Item Color (Icon & Text)
                     Color getItemColor(int index) {
                       if (index == _currentIndex) {
                         return Color.lerp(unselectedColor, selectedColor, _animation.value)!;
@@ -145,27 +132,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                       }
                     }
 
-                    // --- Build UI based on animated values ---
                     return Stack(
                       children: [
-                        // Pulsing drop indicator
-                        if (currentLeft != null)
-                          Positioned(
-                            left: currentLeft - (currentSize / 2),
-                            top: (navBarHeight - currentSize) / 2,
-                            width: currentSize,
-                            height: currentSize,
-                            child: LiquidGlass.withOwnLayer(
-                              settings: const LiquidGlassSettings(
-                                blur: 5.0,
-                                thickness: 30,
-                                glassColor: Color(0x4DFFFFFF),
-                              ),
-                              shape: LiquidRoundedSuperellipse(borderRadius: currentSize / 2), // Correct way to make a circle
-                              child: const SizedBox.shrink(),
-                            ),
-                          ),
-                        // Navigation items with animated colors
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
@@ -186,7 +154,6 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     );
   }
 
-  // This widget is now simpler, just rendering the state passed to it.
   Widget _buildNavItem(IconData icon, String label, int index, double itemWidth, Color color) {
     return SizedBox(
       width: itemWidth,
@@ -231,48 +198,70 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class CharacterScreen extends StatelessWidget {
+class CharacterScreen extends StatefulWidget {
   const CharacterScreen({super.key});
 
   @override
+  State<CharacterScreen> createState() => _CharacterScreenState();
+}
+
+class _CharacterScreenState extends State<CharacterScreen> {
+  final Map<String, double> _stats = {
+    'Логика': 18,
+    'Креативность': 12,
+    'Скорость': 16,
+    'Эмпатия': 14,
+    'Точность': 17,
+  };
+
+  @override
   Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(top: 100.0, left: 20.0, right: 20.0, bottom: 20.0),
+      child: Column(
+        children: [
+          // 2. The new, separate header card
+          _buildHeaderCard(),
+          const SizedBox(height: 24),
+          ..._stats.entries.map((entry) {
+            return _buildStatCard(entry.key, entry.value);
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  // 2. New widget for the header card
+  Widget _buildHeaderCard() {
     return SizedBox(
-      height: 350,
-      width: 300,
+      width: double.infinity,
       child: LiquidGlass.withOwnLayer(
         settings: const LiquidGlassSettings(
-          blur: 10.0,
-          thickness: 20,
-          glassColor: Color(0x33FFFFFF),
+          blur: 8.0,
+          thickness: 10,
+          glassColor: Color(0x2AFFFFFF),
         ),
-        shape: LiquidRoundedSuperellipse(borderRadius: 30),
+        shape: LiquidRoundedSuperellipse(borderRadius: 20),
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
               const CircleAvatar(
                 radius: 50,
-                backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=a042581f4e29026704d'), // Placeholder avatar
+                // 1. Changed avatar image
+                backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=a042581f4e29026704e'),
               ),
               const SizedBox(height: 20),
+              // 1. Changed name to "Ария"
               const Text(
-                'Элара',
-                style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                'Ария',
+                style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
+              // 1. Changed title
               Text(
-                'Уровень 12 | Волшебница',
-                style: TextStyle(color: Colors.amber[200], fontSize: 16),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildStatColumn('Сила', '10'),
-                  _buildStatColumn('Ловкость', '14'),
-                  _buildStatColumn('Интеллект', '18'),
-                ],
+                'Виртуальный ассистент',
+                style: TextStyle(color: Colors.amber[200], fontSize: 18),
               ),
             ],
           ),
@@ -281,19 +270,58 @@ class CharacterScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatColumn(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
+  Widget _buildStatCard(String label, double value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: SizedBox(
+        width: double.infinity,
+        child: LiquidGlass.withOwnLayer(
+          settings: const LiquidGlassSettings(
+            blur: 8.0,
+            thickness: 10,
+            glassColor: Color(0x2AFFFFFF),
+          ),
+          shape: LiquidRoundedSuperellipse(borderRadius: 20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      value.round().toString(),
+                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                SizedBox(
+                  height: 30,
+                  child: Slider(
+                    value: value,
+                    min: 0,
+                    max: 20,
+                    divisions: 20,
+                    label: value.round().toString(),
+                    activeColor: Colors.amber[400],
+                    inactiveColor: Colors.white.withOpacity(0.3),
+                    onChanged: (newValue) {
+                      setState(() {
+                        _stats[label] = newValue;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-        const SizedBox(height: 5),
-        Text(
-          value,
-          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-      ],
+      ),
     );
   }
 }
