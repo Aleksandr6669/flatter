@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+import 'dart:math';
 
 void main() {
   runApp(const MyApp());
@@ -71,61 +72,63 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Widget _buildGlassNavBar() {
-    final screenWidth = MediaQuery.of(context).size.width;
-    const double horizontalPadding = 40.0;
-    final double navBarWidth = screenWidth - (horizontalPadding * 2);
-    const int itemCount = 3;
-    final double itemWidth = navBarWidth / itemCount;
-
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 20.0, left: horizontalPadding, right: horizontalPadding),
-        child: SizedBox(
-          height: 65,
-          width: double.infinity,
-          child: LiquidGlass.withOwnLayer(
-            settings: const LiquidGlassSettings(
-              blur: 10.0,
-              thickness: 15,
-              glassColor: Color(0x33FFFFFF),
-            ),
-            shape: LiquidRoundedSuperellipse(borderRadius: 25),
-            child: Stack(
-              children: [
-                // The sliding glass indicator
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 350),
-                  curve: Curves.easeInOut,
-                  left: _selectedIndex * itemWidth,
-                  top: 0,
-                  height: 65,
-                  width: itemWidth,
-                  child: Padding(
-                    padding: const EdgeInsets.all(4.0),
-                    child: LiquidGlass.withOwnLayer(
-                      settings: const LiquidGlassSettings(
-                        blur: 8.0,
-                        thickness: 40,
-                        glassColor: Color(0x4DFFFFFF),
-                      ),
-                      shape: LiquidRoundedSuperellipse(borderRadius: 21),
-                      child: const SizedBox.shrink(),
-                    ),
-                  ),
+        padding: const EdgeInsets.only(bottom: 20.0, left: 20, right: 20),
+        child: LayoutBuilder( // Use LayoutBuilder for robust width calculation
+          builder: (context, constraints) {
+            final double navBarWidth = max(0, constraints.maxWidth);
+            const int itemCount = 3;
+            final double itemWidth = navBarWidth / itemCount;
+
+            return SizedBox(
+              height: 65,
+              width: double.infinity,
+              child: LiquidGlass.withOwnLayer(
+                settings: const LiquidGlassSettings(
+                  blur: 10.0,
+                  thickness: 15,
+                  glassColor: Color(0x33FFFFFF),
                 ),
-                // The navigation items on top
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                shape: LiquidRoundedSuperellipse(borderRadius: 25),
+                child: Stack(
                   children: [
-                    _buildNavItem(Icons.home, 'Главная', 0, itemWidth),
-                    _buildNavItem(Icons.person, 'Персонаж', 1, itemWidth),
-                    _buildNavItem(Icons.settings, 'Настройки', 2, itemWidth),
+                    // The sliding glass indicator
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 350),
+                      curve: Curves.easeInOut,
+                      left: _selectedIndex * itemWidth,
+                      top: 0,
+                      height: 65,
+                      width: itemWidth,
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: LiquidGlass.withOwnLayer(
+                          settings: const LiquidGlassSettings(
+                            blur: 8.0,
+                            thickness: 40,
+                            glassColor: Color(0x4DFFFFFF),
+                          ),
+                          shape: LiquidRoundedSuperellipse(borderRadius: 21),
+                          child: const SizedBox.shrink(),
+                        ),
+                      ),
+                    ),
+                    // The navigation items on top
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildNavItem(Icons.home, 'Главная', 0, itemWidth),
+                        _buildNavItem(Icons.person, 'Персонаж', 1, itemWidth),
+                        _buildNavItem(Icons.settings, 'Настройки', 2, itemWidth),
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
