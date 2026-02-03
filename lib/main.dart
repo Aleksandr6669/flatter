@@ -69,12 +69,6 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
     return Scaffold(
       extendBodyBehindAppBar: true,
       extendBody: true,
-      appBar: AppBar(
-        title: const Text('Character App'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: Colors.white,
-      ),
       body: Stack(
         children: [
           Container(
@@ -206,7 +200,6 @@ class CharacterScreen extends StatefulWidget {
 }
 
 class _CharacterScreenState extends State<CharacterScreen> {
-  // 2. Added new stats
   final Map<String, double> _stats = {
     'Логика': 18,
     'Креативность': 12,
@@ -220,9 +213,8 @@ class _CharacterScreenState extends State<CharacterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 3. Scrolling is already enabled by SingleChildScrollView
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(top: 100.0, left: 20.0, right: 20.0, bottom: 20.0),
+      padding: const EdgeInsets.only(top: 80.0, left: 20.0, right: 20.0, bottom: 100.0),
       child: Column(
         children: [
           _buildHeaderCard(),
@@ -251,13 +243,11 @@ class _CharacterScreenState extends State<CharacterScreen> {
             children: [
               const CircleAvatar(
                 radius: 50,
-                // 1. Changed avatar image for the new name
-                backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=a042581f4e29026704f'),
+                backgroundImage: AssetImage('assets/viktoria_avatar.jpg'), // Using local asset
               ),
               const SizedBox(height: 20),
-              // 1. Changed name to "Элиза"
               const Text(
-                'Элиза',
+                'Viktoria',
                 style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
