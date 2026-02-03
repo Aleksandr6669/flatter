@@ -44,7 +44,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      extendBody: true, // Important to extend body behind the custom navbar
+      extendBody: true,
       appBar: AppBar(
         title: const Text('Character App'),
         backgroundColor: Colors.transparent,
@@ -53,7 +53,6 @@ class _MainScreenState extends State<MainScreen> {
       ),
       body: Stack(
         children: [
-          // 1. Your background content goes here
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -62,44 +61,68 @@ class _MainScreenState extends State<MainScreen> {
               ),
             ),
           ),
-
-          // 2. Create a layer for liquid glass effects
-          LiquidGlassLayer(
-            settings: const LiquidGlassSettings(
-              blur: 10.0,
-              thickness: 20,
-              glassColor: Color(0x33FFFFFF),
-            ),
-            child: Stack(
-              children: [
-                Center(
-                  child: _widgetOptions.elementAt(_selectedIndex),
-                ),
-                _buildGlassNavBar(), // Custom glass navigation bar
-              ],
-            ),
+          Center(
+            child: _widgetOptions.elementAt(_selectedIndex),
           ),
+          _buildGlassNavBar(), // Custom glass navigation bar
         ],
       ),
     );
   }
 
   Widget _buildGlassNavBar() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    const double horizontalPadding = 50.0;
+    final double navBarWidth = screenWidth - (horizontalPadding * 2);
+    const int itemCount = 3;
+    final double itemWidth = navBarWidth / itemCount;
+
     return Align(
       alignment: Alignment.bottomCenter,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 20.0, left: 20, right: 20),
+        padding: const EdgeInsets.only(bottom: 20.0, left: horizontalPadding, right: horizontalPadding),
         child: SizedBox(
           height: 65,
           width: double.infinity,
-          child: LiquidGlass(
+          child: LiquidGlass.withOwnLayer(
+            settings: const LiquidGlassSettings(
+              blur: 10.0,
+              thickness: 15,
+              glassColor: Color(0x33FFFFFF),
+            ),
             shape: LiquidRoundedSuperellipse(borderRadius: 25),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+            child: Stack(
               children: [
-                _buildNavItem(Icons.home, 'Главная', 0),
-                _buildNavItem(Icons.person, 'Персонаж', 1),
-                _buildNavItem(Icons.settings, 'Настройки', 2),
+                // The sliding glass indicator
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 350),
+                  curve: Curves.easeInOut,
+                  left: _selectedIndex * itemWidth,
+                  top: 0,
+                  height: 65,
+                  width: itemWidth,
+                  child: Padding(
+                    padding: const EdgeInsets.all(4.0),
+                    child: LiquidGlass.withOwnLayer(
+                      settings: const LiquidGlassSettings(
+                        blur: 8.0,
+                        thickness: 40,
+                        glassColor: Color(0x4DFFFFFF),
+                      ),
+                      shape: LiquidRoundedSuperellipse(borderRadius: 21),
+                      child: const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+                // The navigation items on top
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildNavItem(Icons.home, 'Главная', 0, itemWidth),
+                    _buildNavItem(Icons.person, 'Персонаж', 1, itemWidth),
+                    _buildNavItem(Icons.settings, 'Настройки', 2, itemWidth),
+                  ],
+                ),
               ],
             ),
           ),
@@ -108,29 +131,44 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, int index) {
+  Widget _buildNavItem(IconData icon, String label, int index, double itemWidth) {
     final bool isSelected = _selectedIndex == index;
-    return InkWell(
-      onTap: () => _onItemTapped(index),
-      borderRadius: BorderRadius.circular(20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? Colors.amber[600] : Colors.white70,
-            size: 28,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Colors.amber[600] : Colors.white70,
-              fontSize: 12,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+    final Color unselectedColor = Colors.white70;
+    final Color selectedColor = Colors.amber[600]!;
+
+    return SizedBox(
+      width: itemWidth,
+      child: InkWell(
+        onTap: () => _onItemTapped(index),
+        borderRadius: BorderRadius.circular(25),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Animate the icon color
+            TweenAnimationBuilder<Color?>(
+              tween: ColorTween(end: isSelected ? selectedColor : unselectedColor),
+              duration: const Duration(milliseconds: 300),
+              builder: (context, color, child) {
+                return Icon(
+                  icon,
+                  color: color,
+                  size: 28,
+                );
+              },
             ),
-          ),
-        ],
+            const SizedBox(height: 2),
+            // Animate the text style (color)
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 300),
+              style: TextStyle(
+                color: isSelected ? selectedColor : unselectedColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+              child: Text(label),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -158,7 +196,12 @@ class CharacterScreen extends StatelessWidget {
     return SizedBox(
       height: 350,
       width: 300,
-      child: LiquidGlass(
+      child: LiquidGlass.withOwnLayer(
+        settings: const LiquidGlassSettings(
+          blur: 10.0,
+          thickness: 20,
+          glassColor: Color(0x33FFFFFF),
+        ),
         shape: LiquidRoundedSuperellipse(borderRadius: 30),
         child: Padding(
           padding: const EdgeInsets.all(20.0),
