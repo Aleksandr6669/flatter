@@ -206,21 +206,25 @@ class CharacterScreen extends StatefulWidget {
 }
 
 class _CharacterScreenState extends State<CharacterScreen> {
+  // 2. Added new stats
   final Map<String, double> _stats = {
     'Логика': 18,
     'Креативность': 12,
     'Скорость': 16,
     'Эмпатия': 14,
     'Точность': 17,
+    'Память': 19,
+    'Надежность': 20,
+    'Адаптивность': 15,
   };
 
   @override
   Widget build(BuildContext context) {
+    // 3. Scrolling is already enabled by SingleChildScrollView
     return SingleChildScrollView(
       padding: const EdgeInsets.only(top: 100.0, left: 20.0, right: 20.0, bottom: 20.0),
       child: Column(
         children: [
-          // 2. The new, separate header card
           _buildHeaderCard(),
           const SizedBox(height: 24),
           ..._stats.entries.map((entry) {
@@ -231,7 +235,6 @@ class _CharacterScreenState extends State<CharacterScreen> {
     );
   }
 
-  // 2. New widget for the header card
   Widget _buildHeaderCard() {
     return SizedBox(
       width: double.infinity,
@@ -248,17 +251,16 @@ class _CharacterScreenState extends State<CharacterScreen> {
             children: [
               const CircleAvatar(
                 radius: 50,
-                // 1. Changed avatar image
-                backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=a042581f4e29026704e'),
+                // 1. Changed avatar image for the new name
+                backgroundImage: NetworkImage('https://i.pravatar.cc/150?u=a042581f4e29026704f'),
               ),
               const SizedBox(height: 20),
-              // 1. Changed name to "Ария"
+              // 1. Changed name to "Элиза"
               const Text(
-                'Ария',
+                'Элиза',
                 style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              // 1. Changed title
               Text(
                 'Виртуальный ассистент',
                 style: TextStyle(color: Colors.amber[200], fontSize: 18),
