@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:myapp/assistant_overlay.dart';
 
 class WebViewScreen extends StatefulWidget {
   final String url;
@@ -29,7 +30,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
             });
           },
           onWebResourceError: (WebResourceError error) {
-            // You can show an error message here
+            // Можно добавить обработку ошибок
           },
         ),
       )
@@ -39,7 +40,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Use a stack to show a loading indicator on top of the webview
       body: Stack(
         children: [
           WebViewWidget(controller: _controller),
@@ -47,6 +47,15 @@ class _WebViewScreenState extends State<WebViewScreen> {
             const Center(
               child: CircularProgressIndicator(),
             ),
+          AssistantOverlay(webViewController: _controller), // Передаем контроллер в оверлей
+           Positioned(
+            top: 40,
+            left: 20,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ),
         ],
       ),
     );
