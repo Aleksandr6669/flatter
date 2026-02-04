@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:height="180dp"
+    android:width="320dp"
+    android:viewportHeight="180"
+    android:viewportWidth="320">
+  <path
+      android:fillColor="#000000"
+      android:pathData="M0,0h320v180h-320z" />
+  <path
+      android:fillColor="#FFFFFF"
+      android:pathData="M100,90 A1,1 0 0,1 220,90"
+      android:text="Clock App"/>
+</vector>
