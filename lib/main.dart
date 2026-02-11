@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF0A0F1A),
-        fontFamily: 'Roboto', // A modern, clean font
+        fontFamily: 'Roboto',
       ),
       debugShowCheckedModeBanner: false,
       home: HomeScreen(cameras: cameras),
@@ -46,8 +46,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Size? _imageSize;
   Offset? _cursorPosition;
   bool _isPinching = false;
+  bool _isHandVisible = false; // Diagnostic flag
 
-  // Using GlobalKeys to find button positions
   final GlobalKey _vikaButtonKey = GlobalKey();
   final GlobalKey _leraButtonKey = GlobalKey();
   final GlobalKey _aboutButtonKey = GlobalKey();
@@ -83,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _processImage(CameraImage image) async {
-    if (!mounted) return;
+    if (!mounted || _poseDetector == null) return;
 
     final inputImage = InputImage.fromBytes(
       bytes: image.planes.first.bytes,
@@ -100,38 +100,35 @@ class _HomeScreenState extends State<HomeScreen> {
     final poses = await _poseDetector!.processImage(inputImage);
     final Size screenSize = MediaQuery.of(context).size;
 
+    Offset? newCursorPosition;
+    bool newIsPinching = false;
+    bool handVisible = false;
+
     if (poses.isNotEmpty) {
       final pose = poses.first;
       final leftIndex = pose.landmarks[PoseLandmarkType.leftIndex];
       final leftThumb = pose.landmarks[PoseLandmarkType.leftThumb];
 
       if (leftIndex != null && leftThumb != null) {
-        // Calculate cursor position
-        final cursor = _transformPoint(leftIndex.x, leftIndex.y, screenSize,
+        handVisible = true;
+        newCursorPosition = _transformPoint(leftIndex.x, leftIndex.y, screenSize,
             Size(image.width.toDouble(), image.height.toDouble()));
 
-        // Calculate pinch gesture
         final distance = sqrt(pow(leftIndex.x - leftThumb.x, 2) + pow(leftIndex.y - leftThumb.y, 2));
-        final isCurrentlyPinching = distance < 50; // Threshold might need tuning
+        newIsPinching = distance < 50;
 
-        if (isCurrentlyPinching && !_isPinching) {
-          _handleGesture(cursor);
+        if (newIsPinching && !_isPinching) {
+          _handleGesture(newCursorPosition);
         }
-
-        setState(() {
-          _poses = poses;
-          _imageSize = Size(image.width.toDouble(), image.height.toDouble());
-          _cursorPosition = cursor;
-          _isPinching = isCurrentlyPinching;
-        });
-        return;
       }
     }
 
-    // If no pose or landmarks, clear the state
     setState(() {
-      _poses = [];
-      _cursorPosition = null;
+      _poses = poses;
+      _imageSize = Size(image.width.toDouble(), image.height.toDouble());
+      _cursorPosition = newCursorPosition;
+      _isPinching = newIsPinching;
+      _isHandVisible = handVisible;
     });
   }
 
@@ -147,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final position = renderBox.localToGlobal(Offset.zero);
       final size = renderBox.size;
       final buttonRect = Rect.fromLTWH(position.dx, position.dy, size.width, size.height);
-      
+
       if (buttonRect.contains(_cursorPosition!)) {
         print("--- GESTURE DETECTED: Pressed '$buttonName' button ---");
       }
@@ -156,13 +153,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Offset _transformPoint(double x, double y, Size screenSize, Size imageSize) {
     if (imageSize.width == 0 || imageSize.height == 0) return Offset.zero;
-
     final double scaleX = screenSize.width / imageSize.height;
     final double scaleY = screenSize.height / imageSize.width;
-    
-    // Flip X for front camera mirror effect
     double flippedX = imageSize.height - x;
-
     return Offset(flippedX * scaleX, y * scaleY);
   }
 
@@ -171,7 +164,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Custom Painter for Skeleton and Cursor
           if (_cameraController?.value.isInitialized ?? false)
             CustomPaint(
               size: MediaQuery.of(context).size,
@@ -180,81 +172,33 @@ class _HomeScreenState extends State<HomeScreen> {
                 imageSize: _imageSize ?? Size.zero,
                 cursorPosition: _cursorPosition,
                 isPinching: _isPinching,
-                transformPoint: (x, y, size, imgSize) => _transformPoint(x, y, size, imgSize),
+                transformPoint: _transformPoint,
               ),
             ),
 
-          // UI Cards
-          const Positioned(
-            top: 100,
-            left: 50,
+          Positioned(
+            top: 100, left: 50,
             child: InfoCard(
-              system: 'SYSTEM / VIKA',
-              title: 'VIKA',
-              description: 'Your guide and support.',
-              buttonText: 'OPEN',
-            ),
-          ),
-          const Positioned(
-            top: 350,
-            left: 300,
-            child: InfoCard(
-              system: 'SYSTEM / LERA',
-              title: 'LERA',
-              titleColor: Color(0xFFF472B6), // Pink title color
-              description: 'Creativity and drive.',
-              buttonText: 'OPEN',
+              system: 'SYSTEM / VIKA', title: 'VIKA', description: 'Your guide and support.',
+              buttonText: 'OPEN', buttonKey: _vikaButtonKey,
             ),
           ),
           Positioned(
-            top: 150,
-            right: 50,
+            top: 350, left: 300,
             child: InfoCard(
-              system: 'ABOUT',
-              title: 'ABOUT AIR OS',
+              system: 'SYSTEM / LERA', title: 'LERA', titleColor: const Color(0xFFF472B6),
+              description: 'Creativity and drive.', buttonText: 'OPEN', buttonKey: _leraButtonKey,
+            ),
+          ),
+          Positioned(
+            top: 150, right: 50,
+            child: InfoCard(
+              system: 'ABOUT', title: 'ABOUT AIR OS', 
               description: 'This is a demo of a futuristic OS\\ncontrolled by hand gestures.',
-              buttonText: 'READ MORE',
-              key: _aboutButtonKey, // Assign key here
+              buttonText: 'READ MORE', buttonKey: _aboutButtonKey,
             ),
           ),
 
-          // Assign keys to buttons inside InfoCard by rebuilding them with keys
-          Positioned(
-            top: 100,
-            left: 50,
-            child: InfoCard(
-              system: 'SYSTEM / VIKA',
-              title: 'VIKA',
-              description: 'Your guide and support.',
-              buttonText: 'OPEN',
-              buttonKey: _vikaButtonKey,
-            ),
-          ),
-            Positioned(
-            top: 350,
-            left: 300,
-            child: InfoCard(
-              system: 'SYSTEM / LERA',
-              title: 'LERA',
-              titleColor: Color(0xFFF472B6),
-              description: 'Creativity and drive.',
-              buttonText: 'OPEN',
-              buttonKey: _leraButtonKey,
-            ),
-          ),
-          Positioned(
-            top: 150,
-            right: 50,
-            child: InfoCard(
-              system: 'ABOUT',
-              title: 'ABOUT AIR OS',
-              description: 'This is a demo of a futuristic OS\\ncontrolled by hand gestures.',
-              buttonText: 'READ MORE',
-              buttonKey: _aboutButtonKey,
-            ),
-          ),
-
-          // Controls Active Button
           Align(
             alignment: Alignment.bottomRight,
             child: Padding(
@@ -262,12 +206,31 @@ class _HomeScreenState extends State<HomeScreen> {
               child: ElevatedButton(
                 onPressed: () {},
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
-                  foregroundColor: Colors.white,
+                  backgroundColor: const Color(0xFF10B981), foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
                 child: const Text('Controls Active'),
+              ),
+            ),
+          ),
+
+          // --- DIAGNOSTIC WIDGET ---
+          Positioned(
+            top: 20,
+            left: 20,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Poses found: ${_poses.length}', style: const TextStyle(color: Colors.white)),
+                  Text('Hand visible: $_isHandVisible', style: const TextStyle(color: Colors.white)),
+                ],
               ),
             ),
           ),
@@ -280,41 +243,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// Reusable InfoCard Widget
 class InfoCard extends StatelessWidget {
-  final String system;
-  final String title;
-  final String description;
-  final String buttonText;
+  final String system, title, description, buttonText;
   final Color titleColor;
-  final GlobalKey? buttonKey; // Optional key for the button
+  final GlobalKey? buttonKey;
 
   const InfoCard({
-    super.key,
-    required this.system,
-    required this.title,
-    required this.description,
-    required this.buttonText,
-    this.titleColor = const Color(0xFF2DD4BF), // Default Teal
-    this.buttonKey,
+    super.key, required this.system, required this.title, required this.description,
+    required this.buttonText, this.titleColor = const Color(0xFF2DD4BF), this.buttonKey,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 280,
-      padding: const EdgeInsets.all(20),
+      width: 280, padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B).withOpacity(0.85),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            blurRadius: 15,
-            spreadRadius: 5,
-          )
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 15, spreadRadius: 5)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -326,11 +273,10 @@ class InfoCard extends StatelessWidget {
           Text(description, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14)),
           const SizedBox(height: 20),
           ElevatedButton(
-            key: buttonKey, // Assign the key here
+            key: buttonKey,
             onPressed: () {},
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2DD4BF),
-              foregroundColor: const Color(0xFF0A0F1A),
+              backgroundColor: const Color(0xFF2DD4BF), foregroundColor: const Color(0xFF0A0F1A),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
@@ -342,7 +288,6 @@ class InfoCard extends StatelessWidget {
   }
 }
 
-// Custom Painter for the Pose
 class PosePainter extends CustomPainter {
   final List<Pose> poses;
   final Size imageSize;
@@ -351,55 +296,43 @@ class PosePainter extends CustomPainter {
   final Offset Function(double, double, Size, Size) transformPoint;
 
   PosePainter({
-    required this.poses,
-    required this.imageSize,
-    required this.cursorPosition,
-    required this.isPinching,
-    required this.transformPoint,
+    required this.poses, required this.imageSize, required this.cursorPosition,
+    required this.isPinching, required this.transformPoint,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final linePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..color = const Color(0xFF2DD4BF).withOpacity(0.7);
-
-    final pointPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = Colors.white;
+      ..style = PaintingStyle.stroke..strokeWidth = 2.0..color = const Color(0xFF2DD4BF).withOpacity(0.7);
+    final pointPaint = Paint()..style = PaintingStyle.fill..color = Colors.white;
 
     for (final pose in poses) {
       final landmarks = pose.landmarks;
 
-      // Draw all landmarks as small white dots
-      landmarks.forEach((_, landmark) {
-        final point = transformPoint(landmark.x, landmark.y, size, imageSize);
-        canvas.drawCircle(point, 2.5, pointPaint);
+      // --- Draw Hand Skeleton ---
+      final connections = {
+        PoseLandmarkType.leftShoulder: PoseLandmarkType.leftElbow,
+        PoseLandmarkType.leftElbow: PoseLandmarkType.leftWrist,
+        PoseLandmarkType.leftWrist: PoseLandmarkType.leftThumb,
+        PoseLandmarkType.leftWrist: PoseLandmarkType.leftIndex,
+        PoseLandmarkType.leftWrist: PoseLandmarkType.leftPinky,
+        PoseLandmarkType.leftIndex: PoseLandmarkType.leftPinky,
+      };
+
+      connections.forEach((start, end) {
+        final p1 = landmarks[start];
+        final p2 = landmarks[end];
+        if (p1 != null && p2 != null) {
+          canvas.drawLine(transformPoint(p1.x, p1.y, size, imageSize), transformPoint(p2.x, p2.y, size, imageSize), linePaint);
+        }
       });
 
-      // Define and draw connections
-      final connections = [
-        [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftElbow],
-        [PoseLandmarkType.leftElbow, PoseLandmarkType.leftWrist],
-        [PoseLandmarkType.leftWrist, PoseLandmarkType.leftPinky],
-        [PoseLandmarkType.leftWrist, PoseLandmarkType.leftIndex],
-        [PoseLandmarkType.leftWrist, PoseLandmarkType.leftThumb],
-        [PoseLandmarkType.leftIndex, PoseLandmarkType.leftPinky], // Across the palm
-
-        [PoseLandmarkType.leftShoulder, PoseLandmarkType.rightShoulder],
-        [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftHip],
-      ];
-
-      for (var connection in connections) {
-        final p1 = landmarks[connection[0]];
-        final p2 = landmarks[connection[1]];
-        if (p1 != null && p2 != null) {
-          canvas.drawLine(
-            transformPoint(p1.x, p1.y, size, imageSize),
-            transformPoint(p2.x, p2.y, size, imageSize),
-            linePaint,
-          );
+      // Draw landmark points for the hand
+      final handLandmarks = [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftElbow, PoseLandmarkType.leftWrist, PoseLandmarkType.leftThumb, PoseLandmarkType.leftIndex, PoseLandmarkType.leftPinky];
+      for(var type in handLandmarks) {
+        final landmark = landmarks[type];
+        if (landmark != null) {
+           canvas.drawCircle(transformPoint(landmark.x, landmark.y, size, imageSize), 2.5, pointPaint);
         }
       }
     }
@@ -410,10 +343,8 @@ class PosePainter extends CustomPainter {
         ..style = PaintingStyle.fill
         ..color = isPinching ? Colors.cyanAccent.withOpacity(0.9) : const Color(0xFF2DD4BF).withOpacity(0.5);
       final cursorBorderPaint = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0
-        ..color = Colors.cyanAccent;
-        
+        ..style = PaintingStyle.stroke..strokeWidth = 2.0..color = Colors.cyanAccent;
+
       canvas.drawCircle(cursorPosition!, isPinching ? 12 : 10, cursorPaint);
       canvas.drawCircle(cursorPosition!, 10, cursorBorderPaint);
     }
