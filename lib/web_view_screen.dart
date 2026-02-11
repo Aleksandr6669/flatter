@@ -103,6 +103,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final WebViewController controller =
         WebViewController.fromPlatformCreationParams(params);
 
+    if (controller.platform is WebKitWebViewController) {
+      (controller.platform as WebKitWebViewController).setInspectable(true);
+    }
+
     controller
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0x00000000))

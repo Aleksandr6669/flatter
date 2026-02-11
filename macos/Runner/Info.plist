@@ -28,5 +28,8 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs access to the camera to enable hand tracking features.</string>
 </dict>
 </plist>
