@@ -1,29 +1,39 @@
 
+import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final cameras = await availableCameras();
+  runApp(MyApp(cameras: cameras));
 }
 
+// Main App Widget
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final List<CameraDescription> cameras;
+  const MyApp({super.key, required this.cameras});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: const HomeScreen(),
+      title: 'Air OS Demo',
       theme: ThemeData(
         brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0A0F1A),
+        fontFamily: 'Roboto', // A modern, clean font
       ),
       debugShowCheckedModeBanner: false,
+      home: HomeScreen(cameras: cameras),
     );
   }
 }
 
+// Home Screen Widget
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final List<CameraDescription> cameras;
+  const HomeScreen({super.key, required this.cameras});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -32,9 +42,15 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   CameraController? _cameraController;
   PoseDetector? _poseDetector;
-  bool _isCameraInitialized = false;
   List<Pose> _poses = [];
   Size? _imageSize;
+  Offset? _cursorPosition;
+  bool _isPinching = false;
+
+  // Using GlobalKeys to find button positions
+  final GlobalKey _vikaButtonKey = GlobalKey();
+  final GlobalKey _leraButtonKey = GlobalKey();
+  final GlobalKey _aboutButtonKey = GlobalKey();
 
   @override
   void initState() {
@@ -50,46 +66,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initializeCamera() async {
-    final cameras = await availableCameras();
-    // Use the front camera for a selfie view
-    final camera = cameras.firstWhere(
+    final camera = widget.cameras.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first);
+        orElse: () => widget.cameras.first);
 
-    _cameraController = CameraController(
-      camera,
-      ResolutionPreset.medium,
-      enableAudio: false,
-    );
-
+    _cameraController = CameraController(camera, ResolutionPreset.medium, enableAudio: false);
     await _cameraController!.initialize();
 
     _poseDetector = PoseDetector(
-      options: PoseDetectorOptions(
-        model: PoseDetectionModel.base,
-        mode: PoseDetectionMode.stream,
-      ),
+      options: PoseDetectorOptions(model: PoseDetectionModel.base, mode: PoseDetectionMode.stream),
     );
 
-    _cameraController!.startImageStream((image) {
-      _processImage(image);
-    });
+    _cameraController!.startImageStream(_processImage);
 
-    if (mounted) {
-      setState(() {
-        _isCameraInitialized = true;
-      });
-    }
+    if (mounted) setState(() {});
   }
 
-  Future<void> _processImage(CameraImage image) async {
-    if (_poseDetector == null || !mounted) return;
+  void _processImage(CameraImage image) async {
+    if (!mounted) return;
 
     final inputImage = InputImage.fromBytes(
       bytes: image.planes.first.bytes,
       metadata: InputImageMetadata(
         size: Size(image.width.toDouble(), image.height.toDouble()),
-        // Use the camera's sensor orientation
         rotation: _cameraController!.description.sensorOrientation == 90
             ? InputImageRotation.rotation90deg
             : InputImageRotation.rotation270deg,
@@ -99,103 +98,329 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     final poses = await _poseDetector!.processImage(inputImage);
+    final Size screenSize = MediaQuery.of(context).size;
 
-    if (mounted) {
-      setState(() {
-        _poses = poses;
-        _imageSize = Size(image.width.toDouble(), image.height.toDouble());
-      });
+    if (poses.isNotEmpty) {
+      final pose = poses.first;
+      final leftIndex = pose.landmarks[PoseLandmarkType.leftIndex];
+      final leftThumb = pose.landmarks[PoseLandmarkType.leftThumb];
+
+      if (leftIndex != null && leftThumb != null) {
+        // Calculate cursor position
+        final cursor = _transformPoint(leftIndex.x, leftIndex.y, screenSize,
+            Size(image.width.toDouble(), image.height.toDouble()));
+
+        // Calculate pinch gesture
+        final distance = sqrt(pow(leftIndex.x - leftThumb.x, 2) + pow(leftIndex.y - leftThumb.y, 2));
+        final isCurrentlyPinching = distance < 50; // Threshold might need tuning
+
+        if (isCurrentlyPinching && !_isPinching) {
+          _handleGesture(cursor);
+        }
+
+        setState(() {
+          _poses = poses;
+          _imageSize = Size(image.width.toDouble(), image.height.toDouble());
+          _cursorPosition = cursor;
+          _isPinching = isCurrentlyPinching;
+        });
+        return;
+      }
     }
+
+    // If no pose or landmarks, clear the state
+    setState(() {
+      _poses = [];
+      _cursorPosition = null;
+    });
+  }
+
+  void _handleGesture(Offset cursorPosition) {
+    _checkButtonPress(_vikaButtonKey, "VIKA OPEN");
+    _checkButtonPress(_leraButtonKey, "LERA OPEN");
+    _checkButtonPress(_aboutButtonKey, "ABOUT READ MORE");
+  }
+
+  void _checkButtonPress(GlobalKey key, String buttonName) {
+    final RenderBox? renderBox = key.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox != null && _cursorPosition != null) {
+      final position = renderBox.localToGlobal(Offset.zero);
+      final size = renderBox.size;
+      final buttonRect = Rect.fromLTWH(position.dx, position.dy, size.width, size.height);
+      
+      if (buttonRect.contains(_cursorPosition!)) {
+        print("--- GESTURE DETECTED: Pressed '$buttonName' button ---");
+      }
+    }
+  }
+
+  Offset _transformPoint(double x, double y, Size screenSize, Size imageSize) {
+    if (imageSize.width == 0 || imageSize.height == 0) return Offset.zero;
+
+    final double scaleX = screenSize.width / imageSize.height;
+    final double scaleY = screenSize.height / imageSize.width;
+    
+    // Flip X for front camera mirror effect
+    double flippedX = imageSize.height - x;
+
+    return Offset(flippedX * scaleX, y * scaleY);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: _isCameraInitialized && _cameraController != null
-          ? CustomPaint(
-              size: Size(MediaQuery.of(context).size.width, MediaQuery.of(context).size.height),
+      body: Stack(
+        children: [
+          // Custom Painter for Skeleton and Cursor
+          if (_cameraController?.value.isInitialized ?? false)
+            CustomPaint(
+              size: MediaQuery.of(context).size,
               painter: PosePainter(
                 poses: _poses,
                 imageSize: _imageSize ?? Size.zero,
-                cameraLensDirection: _cameraController!.description.lensDirection,
+                cursorPosition: _cursorPosition,
+                isPinching: _isPinching,
+                transformPoint: (x, y, size, imgSize) => _transformPoint(x, y, size, imgSize),
               ),
-            )
-          : const Center(child: CircularProgressIndicator()),
+            ),
+
+          // UI Cards
+          const Positioned(
+            top: 100,
+            left: 50,
+            child: InfoCard(
+              system: 'SYSTEM / VIKA',
+              title: 'VIKA',
+              description: 'Your guide and support.',
+              buttonText: 'OPEN',
+            ),
+          ),
+          const Positioned(
+            top: 350,
+            left: 300,
+            child: InfoCard(
+              system: 'SYSTEM / LERA',
+              title: 'LERA',
+              titleColor: Color(0xFFF472B6), // Pink title color
+              description: 'Creativity and drive.',
+              buttonText: 'OPEN',
+            ),
+          ),
+          Positioned(
+            top: 150,
+            right: 50,
+            child: InfoCard(
+              system: 'ABOUT',
+              title: 'ABOUT AIR OS',
+              description: 'This is a demo of a futuristic OS\\ncontrolled by hand gestures.',
+              buttonText: 'READ MORE',
+              key: _aboutButtonKey, // Assign key here
+            ),
+          ),
+
+          // Assign keys to buttons inside InfoCard by rebuilding them with keys
+          Positioned(
+            top: 100,
+            left: 50,
+            child: InfoCard(
+              system: 'SYSTEM / VIKA',
+              title: 'VIKA',
+              description: 'Your guide and support.',
+              buttonText: 'OPEN',
+              buttonKey: _vikaButtonKey,
+            ),
+          ),
+            Positioned(
+            top: 350,
+            left: 300,
+            child: InfoCard(
+              system: 'SYSTEM / LERA',
+              title: 'LERA',
+              titleColor: Color(0xFFF472B6),
+              description: 'Creativity and drive.',
+              buttonText: 'OPEN',
+              buttonKey: _leraButtonKey,
+            ),
+          ),
+          Positioned(
+            top: 150,
+            right: 50,
+            child: InfoCard(
+              system: 'ABOUT',
+              title: 'ABOUT AIR OS',
+              description: 'This is a demo of a futuristic OS\\ncontrolled by hand gestures.',
+              buttonText: 'READ MORE',
+              buttonKey: _aboutButtonKey,
+            ),
+          ),
+
+          // Controls Active Button
+          Align(
+            alignment: Alignment.bottomRight,
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: ElevatedButton(
+                onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                ),
+                child: const Text('Controls Active'),
+              ),
+            ),
+          ),
+          
+          if (!(_cameraController?.value.isInitialized ?? false))
+             const Center(child: CircularProgressIndicator()),
+        ],
+      ),
     );
   }
 }
 
+// Reusable InfoCard Widget
+class InfoCard extends StatelessWidget {
+  final String system;
+  final String title;
+  final String description;
+  final String buttonText;
+  final Color titleColor;
+  final GlobalKey? buttonKey; // Optional key for the button
+
+  const InfoCard({
+    super.key,
+    required this.system,
+    required this.title,
+    required this.description,
+    required this.buttonText,
+    this.titleColor = const Color(0xFF2DD4BF), // Default Teal
+    this.buttonKey,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 280,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B).withOpacity(0.85),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 15,
+            spreadRadius: 5,
+          )
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(system, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
+          const SizedBox(height: 8),
+          Text(title, style: TextStyle(color: titleColor, fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Text(description, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14)),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            key: buttonKey, // Assign the key here
+            onPressed: () {},
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2DD4BF),
+              foregroundColor: const Color(0xFF0A0F1A),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: Text(buttonText, style: const TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Custom Painter for the Pose
 class PosePainter extends CustomPainter {
   final List<Pose> poses;
   final Size imageSize;
-  final CameraLensDirection cameraLensDirection;
+  final Offset? cursorPosition;
+  final bool isPinching;
+  final Offset Function(double, double, Size, Size) transformPoint;
 
-  PosePainter({required this.poses, required this.imageSize, required this.cameraLensDirection});
+  PosePainter({
+    required this.poses,
+    required this.imageSize,
+    required this.cursorPosition,
+    required this.isPinching,
+    required this.transformPoint,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
+    final linePaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 4.0
-      ..color = Colors.cyanAccent;
+      ..strokeWidth = 2.0
+      ..color = const Color(0xFF2DD4BF).withOpacity(0.7);
 
-    final circlePaint = Paint()
-        ..style = PaintingStyle.fill
-        ..color = Colors.lightBlueAccent;
+    final pointPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.white;
 
     for (final pose in poses) {
-      // Draw circles for landmarks
-      pose.landmarks.forEach((_, landmark) {
-        final point = _transformPoint(landmark.x, landmark.y, size);
-        canvas.drawCircle(point, 6.0, circlePaint);
+      final landmarks = pose.landmarks;
+
+      // Draw all landmarks as small white dots
+      landmarks.forEach((_, landmark) {
+        final point = transformPoint(landmark.x, landmark.y, size, imageSize);
+        canvas.drawCircle(point, 2.5, pointPaint);
       });
 
-      // Define connections
-      final connections = {
-        PoseLandmarkType.leftWrist: PoseLandmarkType.leftElbow,
-        PoseLandmarkType.leftElbow: PoseLandmarkType.leftShoulder,
-        PoseLandmarkType.leftShoulder: PoseLandmarkType.rightShoulder,
-        PoseLandmarkType.rightShoulder: PoseLandmarkType.rightElbow,
-        PoseLandmarkType.rightElbow: PoseLandmarkType.rightWrist,
+      // Define and draw connections
+      final connections = [
+        [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftElbow],
+        [PoseLandmarkType.leftElbow, PoseLandmarkType.leftWrist],
+        [PoseLandmarkType.leftWrist, PoseLandmarkType.leftPinky],
+        [PoseLandmarkType.leftWrist, PoseLandmarkType.leftIndex],
+        [PoseLandmarkType.leftWrist, PoseLandmarkType.leftThumb],
+        [PoseLandmarkType.leftIndex, PoseLandmarkType.leftPinky], // Across the palm
 
-        PoseLandmarkType.leftShoulder: PoseLandmarkType.leftHip,
-        PoseLandmarkType.leftHip: PoseLandmarkType.rightHip,
-        PoseLandmarkType.rightHip: PoseLandmarkType.rightShoulder,
-        
-        // You can add more connections for legs, etc.
-      };
+        [PoseLandmarkType.leftShoulder, PoseLandmarkType.rightShoulder],
+        [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftHip],
+      ];
 
-      // Draw lines for connections
-      connections.forEach((start, end) {
-        final p1 = pose.landmarks[start];
-        final p2 = pose.landmarks[end];
+      for (var connection in connections) {
+        final p1 = landmarks[connection[0]];
+        final p2 = landmarks[connection[1]];
         if (p1 != null && p2 != null) {
           canvas.drawLine(
-            _transformPoint(p1.x, p1.y, size),
-            _transformPoint(p2.x, p2.y, size),
-            paint,
+            transformPoint(p1.x, p1.y, size, imageSize),
+            transformPoint(p2.x, p2.y, size, imageSize),
+            linePaint,
           );
         }
-      });
+      }
+    }
+
+    // Draw the cursor
+    if (cursorPosition != null) {
+      final cursorPaint = Paint()
+        ..style = PaintingStyle.fill
+        ..color = isPinching ? Colors.cyanAccent.withOpacity(0.9) : const Color(0xFF2DD4BF).withOpacity(0.5);
+      final cursorBorderPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..color = Colors.cyanAccent;
+        
+      canvas.drawCircle(cursorPosition!, isPinching ? 12 : 10, cursorPaint);
+      canvas.drawCircle(cursorPosition!, 10, cursorBorderPaint);
     }
   }
-  
-  Offset _transformPoint(double x, double y, Size size) {
-      // This transformation now assumes the canvas covers the whole screen.
-      // We scale the points from the image size to the screen (canvas) size.
-      final double scaleX = size.width / imageSize.height;
-      final double scaleY = size.height / imageSize.width;
-
-      // For the front camera, the image is mirrored, so we need to flip the X-axis.
-      double flippedX = imageSize.height - x;
-
-      return Offset(flippedX * scaleX, y * scaleY);
-  }
-
 
   @override
   bool shouldRepaint(covariant PosePainter oldDelegate) {
-    return oldDelegate.poses != poses || oldDelegate.imageSize != imageSize;
+    return oldDelegate.poses != poses || oldDelegate.cursorPosition != cursorPosition;
   }
 }
