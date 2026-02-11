@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
@@ -18,23 +19,39 @@ class _WebViewScreenState extends State<WebViewScreen> {
   late StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
   bool _hasInternet = true;
   bool _isLoading = true;
+  bool _permissionsGranted = false;
 
   final String _initialUrl = 'https://mediaflet.pp.ua/';
 
   @override
   void initState() {
     super.initState();
+    _requestPermissions();
     _initializeWebView();
     _checkConnectivity();
-    if (_hasInternet) {
-      _controller.loadRequest(Uri.parse(_initialUrl));
-    }
   }
 
   @override
   void dispose() {
     _connectivitySubscription.cancel();
     super.dispose();
+  }
+
+  Future<void> _requestPermissions() async {
+    final cameraStatus = await Permission.camera.request();
+    final microphoneStatus = await Permission.microphone.request();
+
+    if (cameraStatus.isGranted && microphoneStatus.isGranted) {
+      setState(() {
+        _permissionsGranted = true;
+      });
+      if (_hasInternet) {
+        _controller.loadRequest(Uri.parse(_initialUrl));
+      }
+    } else {
+      // Handle the case where permissions are denied
+      // You might want to show a dialog or a message to the user
+    }
   }
 
   Future<void> _checkConnectivity() async {
@@ -50,7 +67,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
       setState(() {
         _hasInternet = hasConnection;
       });
-      if (_hasInternet && !_isLoading) {
+      if (_hasInternet && _permissionsGranted) {
         _controller.loadRequest(Uri.parse(_initialUrl));
       }
     }
@@ -73,7 +90,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
     controller
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0x00000000))
-      ..setUserAgent('Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36')
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
@@ -139,23 +155,34 @@ class _WebViewScreenState extends State<WebViewScreen> {
           }
         },
         child: SafeArea(
-          child: _hasInternet
-              ? Stack(
-                  children: [
-                    WebViewWidget(controller: _controller),
-                    if (_isLoading)
-                      const Center(
-                        child: CircularProgressIndicator(),
+          child: _permissionsGranted
+              ? _hasInternet
+                  ? Stack(
+                      children: [
+                        WebViewWidget(controller: _controller),
+                        if (_isLoading)
+                          const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                      ],
+                    )
+                  : const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.wifi_off, size: 64),
+                          SizedBox(height: 16),
+                          Text('Нет подключения к интернету'),
+                        ],
                       ),
-                  ],
-                )
+                    )
               : const Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.wifi_off, size: 64),
+                      Icon(Icons.error_outline, size: 64),
                       SizedBox(height: 16),
-                      Text('Нет подключения к интернету'),
+                      Text('Необходимы разрешения для доступа к камере и микрофону.'),
                     ],
                   ),
                 ),
