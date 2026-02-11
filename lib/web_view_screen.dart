@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
@@ -20,12 +21,15 @@ class _WebViewScreenState extends State<WebViewScreen> {
   bool _hasInternet = true;
   bool _isLoading = true;
   bool _permissionsGranted = false;
+  String _handTrackingJs = "";
 
-  final String _initialUrl = 'https://mediaflet.pp.ua/';
+  final String _initialUrl = 'https://mediaflet.pp.ua/'; // Starting page
+  final String _handTrackingScriptUrl = 'https://mediaflet.pp.ua/hand-tracking.js'; // Static script URL
 
   @override
   void initState() {
     super.initState();
+    _loadHandTrackingJs();
     _requestPermissions();
     _initializeWebView();
     _checkConnectivity();
@@ -35,6 +39,20 @@ class _WebViewScreenState extends State<WebViewScreen> {
   void dispose() {
     _connectivitySubscription.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadHandTrackingJs() async {
+    try {
+      final response = await http.get(Uri.parse(_handTrackingScriptUrl));
+      if (response.statusCode == 200) {
+        setState(() {
+          _handTrackingJs = response.body;
+        });
+      }
+    } catch (e) {
+      debugPrint("Failed to load hand tracking script: $e");
+      // Handle script loading failure
+    }
   }
 
   Future<void> _requestPermissions() async {
@@ -50,7 +68,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
       }
     } else {
       // Handle the case where permissions are denied
-      // You might want to show a dialog or a message to the user
     }
   }
 
@@ -98,6 +115,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
             });
           },
           onPageFinished: (String url) {
+            if (_handTrackingJs.isNotEmpty) {
+              _controller.runJavaScript(_handTrackingJs);
+            }
             setState(() {
               _isLoading = false;
             });
