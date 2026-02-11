@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
