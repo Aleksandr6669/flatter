@@ -1,0 +1,36 @@
+
+name: Build macOS App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_macos_app:
+    name: 🎉 macOS Build
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          architecture: x64
+
+      - name: Get Flutter Dependencies
+        run: flutter pub get
+
+      - name: Build macOS Application
+        run: flutter build macos --release
+
+      - name: Package macOS Application
+        working-directory: build/macos/Build/Products/Release
+        # This zips the .app file into a distributable archive.
+        run: zip -r ../../../../MyApp-macOS.zip . -i '*.app/*'
+
+      - name: Upload macOS App Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release-app
+          path: MyApp-macOS.zip
