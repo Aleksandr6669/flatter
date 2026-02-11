@@ -1,27 +1,19 @@
-# Blueprint: WebView-приложение с управлением жестами
+# Project Blueprint
 
-## Обзор
+## Overview
 
-Это Flutter-приложение представляет собой оболочку (WebView) для просмотра веб-страниц, в которую динамически внедряется скрипт для управления с помощью жестов рук. Приложение может отображать любой веб-сайт, при этом функционал управления жестами будет добавлен на каждую загружаемую страницу.
+This is a native Android application built with Flutter. It uses the device's front-facing camera to perform real-time pose detection and visualizes the user's upper body skeleton on the screen.
 
-## Реализованные функции
+## Features
 
-- **Основной функционал WebView**: Приложение отображает веб-страницы. Стартовая страница — `https://mediaflet.pp.ua/`.
-- **Динамическое внедрение скрипта**: Приложение загружает скрипт управления жестами с фиксированного URL (`https://mediaflet.pp.ua/hand-tracking.js`) и внедряет его в каждую страницу, которая загружается в `WebView`. Это обеспечивает работу управления жестами на любом сайте.
-- **Проверка подключения к сети**: Приложение проверяет наличие интернет-соединения. Если его нет, отображается соответствующее уведомление.
-- **Обработка разрешений**: Приложение запрашивает у пользователя разрешения на доступ к камере и микрофону во время запуска. Это необходимо для работы скрипта управления жестами.
-- **Интеграция с платформой**: Настроен `AndroidWebViewController` для автоматической обработки и предоставления разрешений на доступ к камере и микрофону, запрашиваемых веб-страницей.
-- **Пользовательский интерфейс**: 
-    - Во время загрузки страницы отображается индикатор загрузки.
-    - Если пользователь не предоставил необходимые разрешения, выводится сообщение об ошибке.
-- **Навигация**: Обработка нажатия системной кнопки "Назад" позволяет перемещаться по истории просмотров в `WebView`.
+*   **Native Android Focus:** The application is built exclusively for the Android platform.
+*   **Front Camera View:** The app initializes the front-facing camera for a selfie-style user experience.
+*   **Real-time Pose Detection:** It utilizes Google's ML Kit Pose Detection to identify and track 33 key body landmarks from the camera feed.
+*   **Skeleton Visualization:** A custom `CustomPainter` is implemented to draw the detected pose on a canvas. It renders key landmarks as circles and connects them with lines to form a visible skeleton of the user's arms, shoulders, and torso.
+*   **Dark Theme:** The application runs in a dark theme with a black background, upon which the camera feed and skeleton are displayed.
 
-## План
+## Implementation Details
 
-**Текущая задача (Выполнено):**
-
-- **Проблема**: Необходимо обеспечить работу скрипта управления жестами на любой странице, открытой в `WebView`.
-- **Решение**: 
-  1.  Добавлен пакет `http` для выполнения сетевых запросов.
-  2.  При запуске приложения скрипт `hand-tracking.js` загружается с постоянного URL (`https://mediaflet.pp.ua/hand-tracking.js`).
-  3.  После загрузки любой страницы в `WebView` (событие `onPageFinished`), содержимое загруженного скрипта выполняется в контексте этой страницы с помощью `runJavaScript()`.
+*   **`camera` package:** Used to access and manage the device's camera stream.
+*   **`google_mlkit_pose_detection` package:** The core of the pose detection functionality.
+*   **`PosePainter` (CustomPainter):** A custom widget responsible for drawing the skeleton. It takes the list of detected `Pose` objects and the camera image size to correctly scale and position the skeleton on the screen, handling coordinate transformations for the front-facing camera.
