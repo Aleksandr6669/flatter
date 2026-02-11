@@ -3,20 +3,19 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:myapp/webview_provider.dart';
 
 class AssistantOverlay extends StatefulWidget {
-  final WebViewController? webViewController;
-  const AssistantOverlay({super.key, this.webViewController});
+  const AssistantOverlay({super.key});
 
   @override
   State<AssistantOverlay> createState() => _AssistantOverlayState();
 }
 
-class _AssistantOverlayState extends State<AssistantOverlay>  with TickerProviderStateMixin {
+class _AssistantOverlayState extends State<AssistantOverlay> with TickerProviderStateMixin {
   final SpeechToText _speechToText = SpeechToText();
   bool _speechInitialized = false;
   final List<Map<String, String>> _conversation = [];
@@ -113,37 +112,33 @@ class _AssistantOverlayState extends State<AssistantOverlay>  with TickerProvide
   void _processCommand(String command) {
     String response = "Я вас не совсем поняла.";
     final lowerCaseCommand = command.toLowerCase();
+    final webViewProvider = Provider.of<WebViewProvider>(context, listen: false);
 
     if (lowerCaseCommand.contains('погода')) {
       response = "Погоду я пока не умею показывать, но скоро научусь!";
     } else if (lowerCaseCommand.contains('привет')) {
       response = "Привет! Чем могу помочь?";
     } else if (lowerCaseCommand.contains('открой filmix')) {
-      _openApp("FilmixTV", "http://filmix.tv");
+      webViewProvider.show("http://filmix.tv");
       response = "Открываю FilmixTV";
     } else if (lowerCaseCommand.contains('открой lampa')) {
-      _openApp("LampaTV", "http://lampa.mx/");
+      webViewProvider.show("http://lampa.mx/");
       response = "Открываю LampaTV";
     } else if (lowerCaseCommand.contains('открой lampa stv')) {
-      _openApp("LampaSTV", "http://lampa.stream/");
+      webViewProvider.show("http://lampa.stream/");
       response = "Открываю LampaSTV";
     } else if (lowerCaseCommand.contains('открой youtube')) {
-      _openApp("YoutubeTV", "https://www.youtube.com/tv");
+      webViewProvider.show("https://www.youtube.com/tv");
       response = "Открываю YoutubeTV";
+    } else if (lowerCaseCommand.contains('закрой') || lowerCaseCommand.contains('сверни')) {
+      webViewProvider.hide();
+      response = "Готово!";
     }
 
     setState(() {
         _conversation.add({'speaker': 'assistant', 'text': response});
         _scrollToBottom();
     });
-  }
-
-  void _openApp(String name, String url) {
-    if (widget.webViewController != null) {
-      widget.webViewController!.loadRequest(Uri.parse(url));
-    } else {
-      context.go('/webview?url=${Uri.encodeComponent(url)}');
-    }
   }
 
   void _scrollToBottom() {

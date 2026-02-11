@@ -1,38 +1,22 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
-import 'package:myapp/webview_screen.dart';
-import 'package:myapp/assistant_overlay.dart';
-
-// 1. Конфигурация GoRouter
-final GoRouter _router = GoRouter(
-  routes: <RouteBase>[
-    GoRoute(
-      path: '/',
-      builder: (BuildContext context, GoRouterState state) {
-        return const WeatherClockScreen();
-      },
-      routes: <RouteBase>[
-        GoRoute(
-          path: 'webview',
-          builder: (BuildContext context, GoRouterState state) {
-            final String url = state.uri.queryParameters['url'] ?? 'https://flutter.dev';
-            return WebViewScreen(url: url);
-          },
-        ),
-      ],
-    ),
-  ],
-);
+import 'package:myapp/gesture_overlay_view.dart';
+import 'package:myapp/webview_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ru_RU', null);
-  runApp(const MyApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => WebViewProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -40,9 +24,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 2. Используем MaterialApp.router
-    return MaterialApp.router(
-      routerConfig: _router,
+    return const MaterialApp(
+      home: WeatherClockScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
@@ -55,15 +38,23 @@ class WeatherClockScreen extends StatefulWidget {
   WeatherClockScreenState createState() => WeatherClockScreenState();
 }
 
-class WeatherClockScreenState extends State<WeatherClockScreen>
-    with TickerProviderStateMixin {
+class WeatherClockScreenState extends State<WeatherClockScreen> {
   String _time = '';
   String _date = '';
+  late final WebViewController _webViewController;
 
   @override
   void initState() {
     super.initState();
     _updateTime();
+
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0x00000000));
+
+    // Передаем контроллер в провайдер
+    Provider.of<WebViewProvider>(context, listen: false)
+        .setController(_webViewController);
   }
 
   void _updateTime() {
@@ -86,43 +77,48 @@ class WeatherClockScreenState extends State<WeatherClockScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/background.jpg'),
-                fit: BoxFit.cover,
+      body: GestureOverlayView(
+        webViewController: _webViewController,
+        child: Stack(
+          children: [
+            // --- Основной контент (часы, иконки) ---
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(40.0),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildClockWidget(),
+                      ],
+                    ),
+                    const SizedBox(height: 40),
+                    _buildAppLauncher(),
+                    const Spacer(),
+                  ],
+                ),
               ),
             ),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                color: Colors.black.withAlpha(77),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(40.0),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildClockWidget(),
-                    ],
+
+            // --- Слой WebView ---
+            Consumer<WebViewProvider>(
+              builder: (context, webViewProvider, child) {
+                return Visibility(
+                  visible: webViewProvider.isVisible,
+                  child: Padding(
+                    padding: const EdgeInsets.all(40.0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: WebViewWidget(controller: _webViewController),
+                    ),
                   ),
-                  const SizedBox(height: 40),
-                  _buildAppLauncher(),
-                  const Spacer(),
-                ],
-              ),
+                );
+              },
             ),
-          ),
-          const AssistantOverlay(),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -180,7 +176,7 @@ class WeatherClockScreenState extends State<WeatherClockScreen>
       children: [
         GestureDetector(
           onTap: () {
-             context.go('/webview?url=${Uri.encodeComponent(url)}');
+             Provider.of<WebViewProvider>(context, listen: false).show(url);
           },
           child: Container(
             height: 60,
