@@ -25,9 +25,9 @@ jobs:
         run: flutter build macos --release
 
       - name: Package macOS Application
-        working-directory: build/macos/Build/Products/Release
-        # This zips the .app file into a distributable archive.
-        run: zip -r ../../../../MyApp-macOS.zip . -i '*.app/*'
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -r "${{ github.workspace }}/MyApp-macOS.zip" *.app
 
       - name: Upload macOS App Artifact
         uses: actions/upload-artifact@v4
