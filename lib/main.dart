@@ -3,17 +3,17 @@ import 'dart:math';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final cameras = await availableCameras();
-  runApp(MyApp(cameras: cameras));
+  // We don't need to get cameras here anymore, it will be handled in the HomeScreen.
+  runApp(const MyApp());
 }
 
 // Main App Widget
 class MyApp extends StatelessWidget {
-  final List<CameraDescription> cameras;
-  const MyApp({super.key, required this.cameras});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -25,15 +25,92 @@ class MyApp extends StatelessWidget {
         fontFamily: 'Roboto',
       ),
       debugShowCheckedModeBanner: false,
-      home: HomeScreen(cameras: cameras),
+      home: const PermissionWrapper(),
     );
   }
 }
 
+class PermissionWrapper extends StatefulWidget {
+  const PermissionWrapper({super.key});
+
+  @override
+  _PermissionWrapperState createState() => _PermissionWrapperState();
+}
+
+class _PermissionWrapperState extends State<PermissionWrapper> {
+  PermissionStatus _cameraPermissionStatus = PermissionStatus.denied;
+
+  @override
+  void initState() {
+    super.initState();
+    _requestCameraPermission();
+  }
+
+  Future<void> _requestCameraPermission() async {
+    final status = await Permission.camera.request();
+    setState(() {
+      _cameraPermissionStatus = status;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    switch (_cameraPermissionStatus) {
+      case PermissionStatus.granted:
+        return const HomeScreen();
+      case PermissionStatus.denied:
+        return _buildPermissionDeniedUI();
+      case PermissionStatus.permanentlyDenied:
+        return _buildPermanentlyDeniedUI();
+      default:
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+    }
+  }
+
+  Widget _buildPermissionDeniedUI() {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('Camera permission is required to use this feature.'),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _requestCameraPermission,
+              child: const Text('Grant Permission'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPermanentlyDeniedUI() {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('Camera permission was permanently denied.'),
+            const Text('Please go to settings to enable it.'),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: openAppSettings,
+              child: const Text('Open Settings'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
 // Home Screen Widget
 class HomeScreen extends StatefulWidget {
-  final List<CameraDescription> cameras;
-  const HomeScreen({super.key, required this.cameras});
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -46,7 +123,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Size? _imageSize;
   Offset? _cursorPosition;
   bool _isPinching = false;
-  bool _isHandVisible = false; // Diagnostic flag
+  bool _isHandVisible = false;
+  List<CameraDescription>? _cameras;
 
   final GlobalKey _vikaButtonKey = GlobalKey();
   final GlobalKey _leraButtonKey = GlobalKey();
@@ -55,6 +133,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _initialize();
+  }
+  
+  Future<void> _initialize() async {
+    _cameras = await availableCameras();
     _initializeCamera();
   }
 
@@ -66,9 +149,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initializeCamera() async {
-    final camera = widget.cameras.firstWhere(
+    if (_cameras == null || _cameras!.isEmpty) {
+      print("No cameras available");
+      return;
+    }
+    final camera = _cameras!.firstWhere(
         (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => widget.cameras.first);
+        orElse: () => _cameras!.first);
 
     _cameraController = CameraController(camera, ResolutionPreset.medium, enableAudio: false);
     await _cameraController!.initialize();
@@ -106,15 +193,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (poses.isNotEmpty) {
       final pose = poses.first;
-      final leftIndex = pose.landmarks[PoseLandmarkType.leftIndex];
-      final leftThumb = pose.landmarks[PoseLandmarkType.leftThumb];
+      
+      // Try to get left hand first, then right hand
+      var indexFinger = pose.landmarks[PoseLandmarkType.leftIndex];
+      var thumb = pose.landmarks[PoseLandmarkType.leftThumb];
 
-      if (leftIndex != null && leftThumb != null) {
+      if (indexFinger == null || thumb == null) {
+          indexFinger = pose.landmarks[PoseLandmarkType.rightIndex];
+          thumb = pose.landmarks[PoseLandmarkType.rightThumb];
+      }
+
+      if (indexFinger != null && thumb != null) {
         handVisible = true;
-        newCursorPosition = _transformPoint(leftIndex.x, leftIndex.y, screenSize,
+        newCursorPosition = _transformPoint(indexFinger.x, indexFinger.y, screenSize,
             Size(image.width.toDouble(), image.height.toDouble()));
 
-        final distance = sqrt(pow(leftIndex.x - leftThumb.x, 2) + pow(leftIndex.y - leftThumb.y, 2));
+        final distance = sqrt(pow(indexFinger.x - thumb.x, 2) + pow(indexFinger.y - thumb.y, 2));
         newIsPinching = distance < 50;
 
         if (newIsPinching && !_isPinching) {
@@ -123,13 +217,15 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    setState(() {
-      _poses = poses;
-      _imageSize = Size(image.width.toDouble(), image.height.toDouble());
-      _cursorPosition = newCursorPosition;
-      _isPinching = newIsPinching;
-      _isHandVisible = handVisible;
-    });
+    if (mounted) {
+      setState(() {
+        _poses = poses;
+        _imageSize = Size(image.width.toDouble(), image.height.toDouble());
+        _cursorPosition = newCursorPosition;
+        _isPinching = newIsPinching;
+        _isHandVisible = handVisible;
+      });
+    }
   }
 
   void _handleGesture(Offset cursorPosition) {
@@ -153,29 +249,62 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Offset _transformPoint(double x, double y, Size screenSize, Size imageSize) {
     if (imageSize.width == 0 || imageSize.height == 0) return Offset.zero;
-    final double scaleX = screenSize.width / imageSize.height;
-    final double scaleY = screenSize.height / imageSize.width;
-    double flippedX = imageSize.height - x;
-    return Offset(flippedX * scaleX, y * scaleY);
+    // Since we are using a front camera, the image is mirrored. We need to flip the X-coordinate.
+    final double scaleX = screenSize.width / imageSize.width;
+    final double scaleY = screenSize.height / imageSize.height;
+    // The image stream from camera package on android is rotated landscape left.
+    // So we need to map the coordinates from the landscape image to the portrait screen.
+    // This is a common issue and the transformation can be tricky.
+    // Let's adjust for front camera mirroring and rotation.
+    
+    // The image from the stream is landscape. The screen is portrait.
+    // image width corresponds to screen height, image height to screen width.
+    final double transformedX = y / imageSize.height * screenSize.width;
+    final double transformedY = (imageSize.width - x) / imageSize.width * screenSize.height;
+
+
+    return Offset(transformedX, transformedY);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    
+    final Size screenSize = MediaQuery.of(context).size;
+    final double cameraAspectRatio = _cameraController!.value.aspectRatio;
+    
     return Scaffold(
       body: Stack(
         children: [
-          if (_cameraController?.value.isInitialized ?? false)
-            CustomPaint(
-              size: MediaQuery.of(context).size,
-              painter: PosePainter(
-                poses: _poses,
-                imageSize: _imageSize ?? Size.zero,
-                cursorPosition: _cursorPosition,
-                isPinching: _isPinching,
-                transformPoint: _transformPoint,
+          // Camera Preview
+          SizedBox(
+            width: screenSize.width,
+            height: screenSize.height,
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: screenSize.height * cameraAspectRatio,
+                height: screenSize.height,
+                child: CameraPreview(_cameraController!),
               ),
             ),
+          ),
+          
+          // Pose Painter
+          CustomPaint(
+            size: screenSize,
+            painter: PosePainter(
+              poses: _poses,
+              imageSize: _imageSize ?? Size.zero,
+              cursorPosition: _cursorPosition,
+              isPinching: _isPinching,
+              transformPoint: _transformPoint,
+            ),
+          ),
 
+          // UI elements from before
           Positioned(
             top: 100, left: 50,
             child: InfoCard(
@@ -194,7 +323,7 @@ class _HomeScreenState extends State<HomeScreen> {
             top: 150, right: 50,
             child: InfoCard(
               system: 'ABOUT', title: 'ABOUT AIR OS', 
-              description: 'This is a demo of a futuristic OS\\ncontrolled by hand gestures.',
+              description: 'This is a demo of a futuristic OS\ncontrolled by hand gestures.',
               buttonText: 'READ MORE', buttonKey: _aboutButtonKey,
             ),
           ),
@@ -215,7 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // --- DIAGNOSTIC WIDGET ---
+          // Diagnostic Widget
           Positioned(
             top: 20,
             left: 20,
@@ -230,13 +359,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text('Poses found: ${_poses.length}', style: const TextStyle(color: Colors.white)),
                   Text('Hand visible: $_isHandVisible', style: const TextStyle(color: Colors.white)),
+                  Text('Pinching: $_isPinching', style: const TextStyle(color: Colors.white)),
                 ],
               ),
             ),
           ),
-          
-          if (!(_cameraController?.value.isInitialized ?? false))
-             const Center(child: CircularProgressIndicator()),
         ],
       ),
     );
@@ -309,31 +436,47 @@ class PosePainter extends CustomPainter {
     for (final pose in poses) {
       final landmarks = pose.landmarks;
 
-      // --- Draw Hand Skeleton ---
-      final connections = {
-        PoseLandmarkType.leftShoulder: PoseLandmarkType.leftElbow,
-        PoseLandmarkType.leftElbow: PoseLandmarkType.leftWrist,
-        PoseLandmarkType.leftWrist: PoseLandmarkType.leftThumb,
-        PoseLandmarkType.leftWrist: PoseLandmarkType.leftIndex,
-        PoseLandmarkType.leftWrist: PoseLandmarkType.leftPinky,
-        PoseLandmarkType.leftIndex: PoseLandmarkType.leftPinky,
-      };
+      // Define connections for a more complete skeleton
+      final connections = [
+        // Torso
+        [PoseLandmarkType.leftShoulder, PoseLandmarkType.rightShoulder],
+        [PoseLandmarkType.rightShoulder, PoseLandmarkType.rightHip],
+        [PoseLandmarkType.rightHip, PoseLandmarkType.leftHip],
+        [PoseLandmarkType.leftHip, PoseLandmarkType.leftShoulder],
+        
+        // Left Arm
+        [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftElbow],
+        [PoseLandmarkType.leftElbow, PoseLandmarkType.leftWrist],
+        
+        // Right Arm
+        [PoseLandmarkType.rightShoulder, PoseLandmarkType.rightElbow],
+        [PoseLandmarkType.rightElbow, PoseLandmarkType.rightWrist],
 
-      connections.forEach((start, end) {
-        final p1 = landmarks[start];
-        final p2 = landmarks[end];
+        // Left Hand
+        [PoseLandmarkType.leftWrist, PoseLandmarkType.leftThumb],
+        [PoseLandmarkType.leftWrist, PoseLandmarkType.leftIndex],
+        [PoseLandmarkType.leftWrist, PoseLandmarkType.leftPinky],
+        [PoseLandmarkType.leftIndex, PoseLandmarkType.leftPinky],
+
+        // Right Hand
+        [PoseLandmarkType.rightWrist, PoseLandmarkType.rightThumb],
+        [PoseLandmarkType.rightWrist, PoseLandmarkType.rightIndex],
+        [PoseLandmarkType.rightWrist, PoseLandmarkType.rightPinky],
+        [PoseLandmarkType.rightIndex, PoseLandmarkType.rightPinky],
+      ];
+      
+      // Draw lines
+      for (final connection in connections) {
+        final p1 = landmarks[connection[0]];
+        final p2 = landmarks[connection[1]];
         if (p1 != null && p2 != null) {
           canvas.drawLine(transformPoint(p1.x, p1.y, size, imageSize), transformPoint(p2.x, p2.y, size, imageSize), linePaint);
         }
-      });
+      }
 
-      // Draw landmark points for the hand
-      final handLandmarks = [PoseLandmarkType.leftShoulder, PoseLandmarkType.leftElbow, PoseLandmarkType.leftWrist, PoseLandmarkType.leftThumb, PoseLandmarkType.leftIndex, PoseLandmarkType.leftPinky];
-      for(var type in handLandmarks) {
-        final landmark = landmarks[type];
-        if (landmark != null) {
-           canvas.drawCircle(transformPoint(landmark.x, landmark.y, size, imageSize), 2.5, pointPaint);
-        }
+      // Draw points for all landmarks
+      for (final landmark in landmarks.values) {
+        canvas.drawCircle(transformPoint(landmark.x, landmark.y, size, imageSize), 2.5, pointPaint);
       }
     }
 
