@@ -41,9 +41,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-
-	<!-- PERMISSIONS -->
-    <key>NSLocationWhenInUseUsageDescription</key>
+	<key>NSLocationWhenInUseUsageDescription</key>
     <string>This app requires access to your location to provide location-based services.</string>
     <key>NSCameraUsageDescription</key>
     <string>This app requires access to your camera to capture photos and videos.</string>
@@ -51,7 +49,6 @@
     <string>This app requires access to your microphone to record audio.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>This app requires access to your photo library to select and upload images.</string>
-
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

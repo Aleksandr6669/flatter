@@ -49,10 +49,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   Future<void> _requestAllPermissions() async {
+    // Added Permission.photos to match Info.plist
     await [ 
       Permission.camera,
       Permission.microphone,
       Permission.locationWhenInUse,
+      Permission.photos, 
     ].request();
   }
 
@@ -69,7 +71,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
         ),
       );
 
-    // CORRECTED: This is the modern and correct way to handle permission requests on Android.
     if (_controller.platform is AndroidWebViewController) {
       (_controller.platform as AndroidWebViewController)
           .setOnPlatformPermissionRequest(
