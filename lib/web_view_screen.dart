@@ -26,11 +26,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
   @override
   void initState() {
     super.initState();
-    // 1. Initialize WebView controller first
     _initializeWebView();
-    // 2. Then, request permissions
     _requestPermissions();
-    // 3. Finally, set up connectivity listener
     _checkConnectivity();
   }
 
@@ -51,7 +48,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
         setState(() {
           _permissionsGranted = true;
         });
-        // Try loading URL if permissions are granted and we have internet
         if (_hasInternet) {
           _controller.loadRequest(Uri.parse(widget.url));
         }
@@ -61,7 +57,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
         setState(() {
           _permissionsGranted = false;
         });
-        // If permissions are permanently denied, guide user to settings
         if (cameraStatus.isPermanentlyDenied || microphoneStatus.isPermanentlyDenied) {
           _showSettingsDialog();
         }
@@ -84,7 +79,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
           TextButton(
             child: const Text('Открыть настройки'),
             onPressed: () {
-              openAppSettings(); // Function from permission_handler
+              openAppSettings();
               Navigator.of(context).pop();
             },
           ),
@@ -106,7 +101,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
       setState(() {
         _hasInternet = hasConnection;
       });
-      // Reload page if internet connection was just restored
       if (!hadInternet && hasConnection && _permissionsGranted) {
         _controller.loadRequest(Uri.parse(widget.url));
       }
@@ -124,13 +118,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
       params = const PlatformWebViewControllerCreationParams();
     }
 
-    final WebViewController controller = WebViewController.fromPlatformCreationParams(params);
-
-    if (controller.platform is WebKitWebViewPlatform) {
-      (controller.platform as WebKitWebViewPlatform).setInspectable(true);
-    }
-
-    controller
+    final WebViewController controller = WebViewController.fromPlatformCreationParams(params)
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
@@ -146,12 +134,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
         ),
       );
 
+    // --- Platform-Specific Configuration ---
     if (controller.platform is AndroidWebViewController) {
       AndroidWebViewController.enableDebugging(true);
-      final androidController = controller.platform as AndroidWebViewController;
-      androidController.setMediaPlaybackRequiresUserGesture(false);
-      androidController.setOnPlatformPermissionRequest(
-        (PlatformWebViewPermissionRequest request) => request.grant(),
+      (controller.platform as AndroidWebViewController)
+        .setMediaPlaybackRequiresUserGesture(false);
+      (controller.platform as AndroidWebViewController)
+        .setOnPlatformPermissionRequest(
+          (PlatformWebViewPermissionRequest request) => request.grant(),
       );
     }
 
