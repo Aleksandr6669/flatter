@@ -47,6 +47,10 @@
     <string>This app needs Bluetooth to find and connect to devices.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>This app needs location access to find nearby Bluetooth devices.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>This app needs camera access to scan QR codes and take pictures.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>This app needs microphone access to record audio.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

@@ -1,14 +1,19 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
+// Import the config model
+import 'package:myapp/config_model.dart';
+
 class WebViewScreen extends StatefulWidget {
-  const WebViewScreen({super.key});
+  // Add config to the constructor
+  const WebViewScreen({super.key, required this.config});
+
+  final AppConfig config;
 
   @override
   State<WebViewScreen> createState() => _WebViewScreenState();
@@ -20,15 +25,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
   bool _hasInternet = true;
   bool _isLoading = true;
   bool _permissionsGranted = false;
-  String _handTrackingJs = "";
-
-  final String _initialUrl = 'https://mediaflet.pp.ua/'; // Starting page
-  final String _handTrackingScriptUrl = 'https://mediaflet.pp.ua/hand-tracking.js'; // Static script URL
 
   @override
   void initState() {
     super.initState();
-    _loadHandTrackingJs();
     _requestPermissions();
     _initializeWebView();
     _checkConnectivity();
@@ -40,20 +40,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
     super.dispose();
   }
 
-  Future<void> _loadHandTrackingJs() async {
-    try {
-      final response = await http.get(Uri.parse(_handTrackingScriptUrl));
-      if (response.statusCode == 200) {
-        setState(() {
-          _handTrackingJs = response.body;
-        });
-      }
-    } catch (e) {
-      debugPrint("Failed to load hand tracking script: $e");
-      // Handle script loading failure
-    }
-  }
-
   Future<void> _requestPermissions() async {
     final cameraStatus = await Permission.camera.request();
     final microphoneStatus = await Permission.microphone.request();
@@ -63,7 +49,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
         _permissionsGranted = true;
       });
       if (_hasInternet) {
-        _controller.loadRequest(Uri.parse(_initialUrl));
+        // Use the URL from the config
+        _controller.loadRequest(Uri.parse(widget.config.url));
       }
     } else {
       // Handle the case where permissions are denied
@@ -84,7 +71,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
         _hasInternet = hasConnection;
       });
       if (_hasInternet && _permissionsGranted) {
-        _controller.loadRequest(Uri.parse(_initialUrl));
+        // Use the URL from the config
+        _controller.loadRequest(Uri.parse(widget.config.url));
       }
     }
   }
@@ -103,7 +91,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final WebViewController controller =
         WebViewController.fromPlatformCreationParams(params);
 
-    if (controller.platform is WebKitWebViewController) {
+    if (controller.platform is WebKitWebViewPlatform) {
       (controller.platform as WebKitWebViewController).setInspectable(true);
     }
 
@@ -118,9 +106,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
             });
           },
           onPageFinished: (String url) {
-            if (_handTrackingJs.isNotEmpty) {
-              _controller.runJavaScript(_handTrackingJs);
-            }
             setState(() {
               _isLoading = false;
             });
@@ -168,7 +153,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     return Scaffold(
       body: PopScope(
         canPop: false,
-        onPopInvoked: (didPop) async {
+        onPopInvokedWithResult: (bool didPop, Object? result) async {
           if (didPop) {
             return;
           }
@@ -177,39 +162,37 @@ class _WebViewScreenState extends State<WebViewScreen> {
             _controller.goBack();
           }
         },
-        child: SafeArea(
-          child: _permissionsGranted
-              ? _hasInternet
-                  ? Stack(
-                      children: [
-                        WebViewWidget(controller: _controller),
-                        if (_isLoading)
-                          const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                      ],
-                    )
-                  : const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.wifi_off, size: 64),
-                          SizedBox(height: 16),
-                          Text('Нет подключения к интернету'),
-                        ],
-                      ),
-                    )
-              : const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+        child: _permissionsGranted
+            ? _hasInternet
+                ? Stack(
                     children: [
-                      Icon(Icons.error_outline, size: 64),
-                      SizedBox(height: 16),
-                      Text('Необходимы разрешения для доступа к камере и микрофону.'),
+                      WebViewWidget(controller: _controller),
+                      if (_isLoading)
+                        const Center(
+                          child: CircularProgressIndicator(),
+                        ),
                     ],
-                  ),
+                  )
+                : const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.wifi_off, size: 64),
+                        SizedBox(height: 16),
+                        Text('Нет подключения к интернету'),
+                      ],
+                    ),
+                  )
+            : const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 64),
+                    SizedBox(height: 16),
+                    Text('Необходимы разрешения для доступа к камере и микрофону.'),
+                  ],
                 ),
-        ),
+              ),
       ),
     );
   }
