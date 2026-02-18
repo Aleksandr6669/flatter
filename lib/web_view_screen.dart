@@ -38,12 +38,17 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   Future<void> _requestPermissions() async {
-    final statuses = await [Permission.camera, Permission.microphone].request();
+    final statuses = await [
+      Permission.camera,
+      Permission.microphone,
+      Permission.photos,
+      Permission.bluetooth,
+      Permission.locationWhenInUse,
+    ].request();
 
-    final cameraStatus = statuses[Permission.camera]!;
-    final microphoneStatus = statuses[Permission.microphone]!;
+    final allGranted = statuses.values.every((status) => status.isGranted);
 
-    if (cameraStatus.isGranted && microphoneStatus.isGranted) {
+    if (allGranted) {
       if (mounted) {
         setState(() {
           _permissionsGranted = true;
@@ -57,7 +62,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
         setState(() {
           _permissionsGranted = false;
         });
-        if (cameraStatus.isPermanentlyDenied || microphoneStatus.isPermanentlyDenied) {
+        final permanentlyDenied = statuses.values.any((status) => status.isPermanentlyDenied);
+        if (permanentlyDenied) {
           _showSettingsDialog();
         }
       }
@@ -70,7 +76,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Требуются разрешения'),
         content: const Text(
-            'Вы заблокировали запрос разрешений. Пожалуйста, включите доступ к камере и микрофону в настройках приложения.'),
+            'Вы заблокировали запрос одного или нескольких разрешений. Пожалуйста, включите все необходимые доступы в настройках приложения.'),
         actions: [
           TextButton(
             child: const Text('Отмена'),
@@ -141,7 +147,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
         .setMediaPlaybackRequiresUserGesture(false);
       (controller.platform as AndroidWebViewController)
         .setOnPlatformPermissionRequest(
-          (PlatformWebViewPermissionRequest request) => request.grant(),
+          (PlatformWebViewPermissionRequest request) {
+              request.grant();
+          },
       );
     }
 
@@ -181,7 +189,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Для работы всех функций приложению необходим доступ к камере и микрофону.',
+                'Для работы всех функций приложению необходим доступ к камере, микрофону, фото, Bluetooth и геолокации.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
