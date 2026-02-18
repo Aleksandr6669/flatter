@@ -1,3 +1,4 @@
+
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
@@ -6,12 +7,10 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
-import 'package:myapp/config_model.dart';
-
 class WebViewScreen extends StatefulWidget {
-  const WebViewScreen({super.key, required this.config});
+  const WebViewScreen({super.key, required this.url});
 
-  final AppConfig config;
+  final String url;
 
   @override
   State<WebViewScreen> createState() => _WebViewScreenState();
@@ -42,29 +41,24 @@ class _WebViewScreenState extends State<WebViewScreen> {
     Map<Permission, PermissionStatus> statuses = await [
       Permission.camera,
       Permission.microphone,
-      Permission.location,
-      Permission.storage,
-      Permission.photos, // Recommended for modern iOS/Android
     ].request();
 
-    // Check if all essential permissions are granted
     if (statuses[Permission.camera]!.isGranted &&
-        statuses[Permission.microphone]!.isGranted &&
-        statuses[Permission.location]!.isGranted) {
+        statuses[Permission.microphone]!.isGranted) {
       if (mounted) {
         setState(() {
           _permissionsGranted = true;
         });
         if (_hasInternet) {
-          _controller.loadRequest(Uri.parse(widget.config.url));
+          _controller.loadRequest(Uri.parse(widget.url));
         }
       }
     } else {
-       if (mounted) {
+      if (mounted) {
         setState(() {
           _permissionsGranted = false;
         });
-       }
+      }
     }
   }
 
@@ -82,7 +76,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
         _hasInternet = hasConnection;
       });
       if (_hasInternet && _permissionsGranted) {
-        _controller.loadRequest(Uri.parse(widget.config.url));
+        _controller.loadRequest(Uri.parse(widget.url));
       }
     }
   }
