@@ -46,11 +46,13 @@
     <key>NSBluetoothPeripheralUsageDescription</key>
     <string>This app needs Bluetooth to find and connect to devices.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>This app needs location access to find nearby Bluetooth devices.</string>
+    <string>This app requires access to your location to provide location-based services.</string>
     <key>NSCameraUsageDescription</key>
-    <string>This app needs camera access to scan QR codes and take pictures.</string>
+    <string>This app requires access to your camera to capture photos and videos.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>This app needs microphone access to record audio.</string>
+    <string>This app requires access to your microphone to record audio.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>This app requires access to your photo library to select and upload images.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

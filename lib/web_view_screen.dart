@@ -6,11 +6,9 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
-// Import the config model
 import 'package:myapp/config_model.dart';
 
 class WebViewScreen extends StatefulWidget {
-  // Add config to the constructor
   const WebViewScreen({super.key, required this.config});
 
   final AppConfig config;
@@ -41,19 +39,32 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   Future<void> _requestPermissions() async {
-    final cameraStatus = await Permission.camera.request();
-    final microphoneStatus = await Permission.microphone.request();
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.camera,
+      Permission.microphone,
+      Permission.location,
+      Permission.storage,
+      Permission.photos, // Recommended for modern iOS/Android
+    ].request();
 
-    if (cameraStatus.isGranted && microphoneStatus.isGranted) {
-      setState(() {
-        _permissionsGranted = true;
-      });
-      if (_hasInternet) {
-        // Use the URL from the config
-        _controller.loadRequest(Uri.parse(widget.config.url));
+    // Check if all essential permissions are granted
+    if (statuses[Permission.camera]!.isGranted &&
+        statuses[Permission.microphone]!.isGranted &&
+        statuses[Permission.location]!.isGranted) {
+      if (mounted) {
+        setState(() {
+          _permissionsGranted = true;
+        });
+        if (_hasInternet) {
+          _controller.loadRequest(Uri.parse(widget.config.url));
+        }
       }
     } else {
-      // Handle the case where permissions are denied
+       if (mounted) {
+        setState(() {
+          _permissionsGranted = false;
+        });
+       }
     }
   }
 
@@ -71,7 +82,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
         _hasInternet = hasConnection;
       });
       if (_hasInternet && _permissionsGranted) {
-        // Use the URL from the config
         _controller.loadRequest(Uri.parse(widget.config.url));
       }
     }
@@ -135,12 +145,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
       androidController.setMediaPlaybackRequiresUserGesture(false);
       androidController.setOnPlatformPermissionRequest(
         (PlatformWebViewPermissionRequest request) {
-          if (request.types.contains(WebViewPermissionResourceType.camera) ||
-              request.types.contains(WebViewPermissionResourceType.microphone)) {
-            request.grant();
-          } else {
-            request.deny();
-          }
+          request.grant();
         },
       );
     }
@@ -154,46 +159,60 @@ class _WebViewScreenState extends State<WebViewScreen> {
       body: PopScope(
         canPop: false,
         onPopInvokedWithResult: (bool didPop, Object? result) async {
-          if (didPop) {
-            return;
-          }
+          if (didPop) return;
           final bool canGoBack = await _controller.canGoBack();
           if (canGoBack) {
             _controller.goBack();
           }
         },
-        child: _permissionsGranted
-            ? _hasInternet
-                ? Stack(
-                    children: [
-                      WebViewWidget(controller: _controller),
-                      if (_isLoading)
-                        const Center(
-                          child: CircularProgressIndicator(),
-                        ),
-                    ],
-                  )
-                : const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.wifi_off, size: 64),
-                        SizedBox(height: 16),
-                        Text('Нет подключения к интернету'),
-                      ],
-                    ),
-                  )
-            : const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline, size: 64),
-                    SizedBox(height: 16),
-                    Text('Необходимы разрешения для доступа к камере и микрофону.'),
-                  ],
-                ),
-              ),
+        child: _buildBody(),
       ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (!_permissionsGranted) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            const Text(
+              'Для работы приложения необходимы разрешения.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _requestPermissions,
+              child: const Text('Дать разрешения'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!_hasInternet) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.wifi_off, size: 64),
+            SizedBox(height: 16),
+            Text('Нет подключения к интернету'),
+          ],
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        WebViewWidget(controller: _controller),
+        if (_isLoading)
+          const Center(
+            child: CircularProgressIndicator(),
+          ),
+      ],
     );
   }
 }
