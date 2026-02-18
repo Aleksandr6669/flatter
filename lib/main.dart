@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
       ),
       // The app will now always start directly with the WebViewScreen.
-      home: const WebViewScreen(url: "https://multyclet.com/app"),
+      home: const WebViewScreen(url: "https://mediaflet.pp.ua"),
     );
   }
 }

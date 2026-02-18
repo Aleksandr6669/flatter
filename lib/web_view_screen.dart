@@ -37,6 +37,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   Future<void> _initialize() async {
+    // More robust permission request flow
     await _requestAllPermissions();
     await _initializeWebView();
     await _checkConnectivityAndLoad();
@@ -48,14 +49,22 @@ class _WebViewScreenState extends State<WebViewScreen> {
     }
   }
 
+  // More robust, sequential permission request with handling for permanently denied state.
   Future<void> _requestAllPermissions() async {
-    // Added Permission.photos to match Info.plist
-    await [ 
+    final permissions = [
       Permission.camera,
       Permission.microphone,
       Permission.locationWhenInUse,
-      Permission.photos, 
-    ].request();
+      Permission.photos,
+    ];
+
+    for (var permission in permissions) {
+      final status = await permission.request();
+      if (status.isPermanentlyDenied) {
+        // If the user permanently denied the permission, open app settings.
+        await openAppSettings();
+      }
+    }
   }
 
   Future<void> _initializeWebView() async {
