@@ -41,10 +41,8 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-    <key>NSBluetoothAlwaysUsageDescription</key>
-    <string>This app needs Bluetooth to find and connect to devices.</string>
-    <key>NSBluetoothPeripheralUsageDescription</key>
-    <string>This app needs Bluetooth to find and connect to devices.</string>
+
+	<!-- PERMISSIONS -->
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>This app requires access to your location to provide location-based services.</string>
     <key>NSCameraUsageDescription</key>
@@ -53,22 +51,10 @@
     <string>This app requires access to your microphone to record audio.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>This app requires access to your photo library to select and upload images.</string>
+
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-    <key>CFBundleURLTypes</key>
-    <array>
-        <dict>
-            <key>CFBundleTypeRole</key>
-            <string>Editor</string>
-            <key>CFBundleURLSchemes</key>
-            <array>
-                <string>myapp</string>
-            </array>
-        </dict>
-    </array>
-    <key>FlutterDeepLinkingEnabled</key>
-    <true/>
 </dict>
 </plist>
