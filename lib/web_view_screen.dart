@@ -26,8 +26,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
   @override
   void initState() {
     super.initState();
-    _requestPermissions();
+    // 1. Initialize WebView controller first
     _initializeWebView();
+    // 2. Then, request permissions
+    _requestPermissions();
+    // 3. Finally, set up connectivity listener
     _checkConnectivity();
   }
 
@@ -38,17 +41,17 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   Future<void> _requestPermissions() async {
-    Map<Permission, PermissionStatus> statuses = await [
-      Permission.camera,
-      Permission.microphone,
-    ].request();
+    final statuses = await [Permission.camera, Permission.microphone].request();
 
-    if (statuses[Permission.camera]!.isGranted &&
-        statuses[Permission.microphone]!.isGranted) {
+    final cameraStatus = statuses[Permission.camera]!;
+    final microphoneStatus = statuses[Permission.microphone]!;
+
+    if (cameraStatus.isGranted && microphoneStatus.isGranted) {
       if (mounted) {
         setState(() {
           _permissionsGranted = true;
         });
+        // Try loading URL if permissions are granted and we have internet
         if (_hasInternet) {
           _controller.loadRequest(Uri.parse(widget.url));
         }
@@ -58,24 +61,53 @@ class _WebViewScreenState extends State<WebViewScreen> {
         setState(() {
           _permissionsGranted = false;
         });
+        // If permissions are permanently denied, guide user to settings
+        if (cameraStatus.isPermanentlyDenied || microphoneStatus.isPermanentlyDenied) {
+          _showSettingsDialog();
+        }
       }
     }
+  }
+
+  void _showSettingsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Требуются разрешения'),
+        content: const Text(
+            'Вы заблокировали запрос разрешений. Пожалуйста, включите доступ к камере и микрофону в настройках приложения.'),
+        actions: [
+          TextButton(
+            child: const Text('Отмена'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          TextButton(
+            child: const Text('Открыть настройки'),
+            onPressed: () {
+              openAppSettings(); // Function from permission_handler
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _checkConnectivity() async {
     final connectivityResult = await Connectivity().checkConnectivity();
     _updateConnectionStatus(connectivityResult);
-    _connectivitySubscription =
-        Connectivity().onConnectivityChanged.listen(_updateConnectionStatus);
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(_updateConnectionStatus);
   }
 
   void _updateConnectionStatus(List<ConnectivityResult> result) {
     final hasConnection = result.isNotEmpty && result.first != ConnectivityResult.none;
     if (mounted) {
+      final bool hadInternet = _hasInternet;
       setState(() {
         _hasInternet = hasConnection;
       });
-      if (_hasInternet && _permissionsGranted) {
+      // Reload page if internet connection was just restored
+      if (!hadInternet && hasConnection && _permissionsGranted) {
         _controller.loadRequest(Uri.parse(widget.url));
       }
     }
@@ -92,45 +124,26 @@ class _WebViewScreenState extends State<WebViewScreen> {
       params = const PlatformWebViewControllerCreationParams();
     }
 
-    final WebViewController controller =
-        WebViewController.fromPlatformCreationParams(params);
+    final WebViewController controller = WebViewController.fromPlatformCreationParams(params);
 
     if (controller.platform is WebKitWebViewPlatform) {
-      (controller.platform as WebKitWebViewController).setInspectable(true);
+      (controller.platform as WebKitWebViewPlatform).setInspectable(true);
     }
 
     controller
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0x00000000))
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (String url) {
-            setState(() {
-              _isLoading = true;
-            });
+            if (mounted) setState(() => _isLoading = true);
           },
           onPageFinished: (String url) {
-            setState(() {
-              _isLoading = false;
-            });
+            if (mounted) setState(() => _isLoading = false);
           },
           onWebResourceError: (WebResourceError error) {
-            debugPrint('''Page resource error:
-              code: ${error.errorCode}
-              description: ${error.description}
-              errorType: ${error.errorType}
-              isForMainFrame: ${error.isForMainFrame}
-            ''');
+            debugPrint('Page resource error: ${error.description}');
           },
         ),
-      )
-      ..addJavaScriptChannel(
-        'Toaster',
-        onMessageReceived: (JavaScriptMessage message) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message.message)),
-          );
-        },
       );
 
     if (controller.platform is AndroidWebViewController) {
@@ -138,9 +151,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
       final androidController = controller.platform as AndroidWebViewController;
       androidController.setMediaPlaybackRequiresUserGesture(false);
       androidController.setOnPlatformPermissionRequest(
-        (PlatformWebViewPermissionRequest request) {
-          request.grant();
-        },
+        (PlatformWebViewPermissionRequest request) => request.grant(),
       );
     }
 
@@ -154,8 +165,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
         canPop: false,
         onPopInvokedWithResult: (bool didPop, Object? result) async {
           if (didPop) return;
-          final bool canGoBack = await _controller.canGoBack();
-          if (canGoBack) {
+          if (await _controller.canGoBack()) {
             _controller.goBack();
           }
         },
@@ -167,21 +177,30 @@ class _WebViewScreenState extends State<WebViewScreen> {
   Widget _buildBody() {
     if (!_permissionsGranted) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 64, color: Colors.red),
-            const SizedBox(height: 16),
-            const Text(
-              'Для работы приложения необходимы разрешения.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _requestPermissions,
-              child: const Text('Дать разрешения'),
-            ),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.lock_outline, size: 64, color: Colors.orange),
+              const SizedBox(height: 16),
+              const Text(
+                'Требуется ваше разрешение',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Для работы всех функций приложению необходим доступ к камере и микрофону.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _requestPermissions,
+                child: const Text('Дать разрешения'),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -202,10 +221,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
     return Stack(
       children: [
         WebViewWidget(controller: _controller),
-        if (_isLoading)
-          const Center(
-            child: CircularProgressIndicator(),
-          ),
+        if (_isLoading) const Center(child: CircularProgressIndicator()),
       ],
     );
   }

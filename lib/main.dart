@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:go_router/go_router.dart';
 import 'package:myapp/config_model.dart';
+import 'package:myapp/error_screen.dart';
 import 'package:myapp/web_view.dart';
 
 // Use a global key to access the navigator state
@@ -16,37 +17,42 @@ void main() async {
 
   // Load the configuration file
   final AppConfig config = await _loadConfig();
+  final Uri trustedUri = Uri.parse(config.url);
 
-  // Create the router instance
+  // Create the router instance with a new, simpler logic
   final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/',
+    initialLocation: '/', // Set initial location for normal app start
     routes: <RouteBase>[
+      // This single, catch-all route handles both normal app starts and deep links.
       GoRoute(
-        path: '/',
+        path: '/:path(.*)', // Matches '/' and any other path like '/auth'
         builder: (BuildContext context, GoRouterState state) {
-          // Default route loads the WebView with the URL from the config file
-          return WebViewScreen(url: config.url);
-        },
-      ),
-      GoRoute(
-        // This route handles deep links
-        // e.g., myapp://webview?url=https%3A%2F%2Fyour-site.com%2Fauth-path
-        path: '/webview',
-        builder: (BuildContext context, GoRouterState state) {
-          // Get the URL from the query parameter
-          final String? url = state.uri.queryParameters['url'];
-          if (url != null) {
-            // Decode the URL (it's usually URL-encoded in a deep link)
-            final String decodedUrl = Uri.decodeComponent(url);
-            return WebViewScreen(url: decodedUrl);
+          String finalUrl;
+
+          // Check if it's a normal app start (path is '/' and no query params)
+          // GoRouter automatically navigates to initialLocation on first launch.
+          if (state.uri.path == '/' && state.uri.query.isEmpty) {
+            // On normal start, just use the base URL from the config
+            finalUrl = config.url;
           } else {
-            // If no URL is in the deep link, fall back to the default URL
-            return WebViewScreen(url: config.url);
+            // It's a deep link! Construct the full URL.
+            // The URI from the state contains the path and query from the deep link.
+            // e.g., for 'myapp://auth?token=123', state.uri is '/auth?token=123'
+            final Uri constructedUri = trustedUri.replace(
+              path: state.uri.path,
+              query: state.uri.query.isEmpty ? null : state.uri.query,
+            );
+            finalUrl = constructedUri.toString();
           }
+
+          // Load the final URL in the WebView
+          return WebViewScreen(url: finalUrl);
         },
       ),
     ],
+    // Handle cases where the route is not found
+    errorBuilder: (context, state) => const ErrorScreen(),
   );
 
   runApp(MyApp(router: router));
